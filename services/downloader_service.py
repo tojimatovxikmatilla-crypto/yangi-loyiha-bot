@@ -1,0 +1,252 @@
+"""
+Universal Downloader servisi.
+yt-dlp kutubxonasi orqali Instagram, TikTok, Facebook, X (Twitter), Pinterest
+havolalaridan video/rasm yuklab oladi.
+
+Nega yt-dlp: u eng ko'p platformani qo'llab-quvvatlaydi va tez-tez yangilanib turadi.
+"""
+import os
+import re
+import uuid
+import logging
+from dataclasses import dataclass
+
+import yt_dlp
+import requests
+
+from config import config
+
+logger = logging.getLogger(__name__)
+
+SUPPORTED_DOMAINS = {
+    "instagram.com": "Instagram",
+    "tiktok.com": "TikTok",
+    "facebook.com": "Facebook",
+    "fb.watch": "Facebook",
+    "twitter.com": "X (Twitter)",
+    "x.com": "X (Twitter)",
+    "pinterest.com": "Pinterest",
+    "pin.it": "Pinterest",
+    "youtube.com": "YouTube",
+    "youtu.be": "YouTube",
+}
+
+URL_REGEX = re.compile(r"https?://[^\s]+")
+
+
+@dataclass
+class DownloadResult:
+    success: bool
+    file_path: str | None = None
+    platform: str | None = None
+    error: str | None = None
+    is_video: bool = True
+
+
+def extract_url(text: str) -> str | None:
+    match = URL_REGEX.search(text)
+    return match.group(0) if match else None
+
+
+def detect_platform(url: str) -> str | None:
+    for domain, name in SUPPORTED_DOMAINS.items():
+        if domain in url:
+            return name
+    return None
+
+
+def _instagram_cookie_opts() -> dict:
+    """
+    Instagram uchun avval serverga mo'ljallangan cookie faylini tekshiradi
+    (Railway Variables orqali berilgan), topilmasa lokal brauzer cookie'siga
+    (faqat kompyuterda ishlaganda foydali) qaytadi.
+    """
+    cookies_file = getattr(config, "INSTAGRAM_COOKIES_FILE", "") or ""
+    if cookies_file:
+        return {"cookiefile": cookies_file}
+    if config.USE_BROWSER_COOKIES:
+        return {"cookiesfrombrowser": (config.USE_BROWSER_COOKIES,)}
+    return {}
+
+
+def _download_pinterest_image(url: str, file_id: str) -> str | None:
+    """
+    Pinterest'dagi oddiy rasm-pin (video bo'lmagan) uchun — video formatini
+    qidirish o'rniga, sahifadan to'g'ridan-to'g'ri rasm havolasini olib,
+    uni yuklab olamiz. Yuklangan fayl HAQIQATAN rasm ekanligini
+    (Content-Type orqali) tekshiramiz — aks holda Telegram uni qabul
+    qilmaydi (IMAGE_PROCESS_FAILED xatosi).
+    """
+    try:
+        pinterest_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "ignore_no_formats_error": True,
+        }
+        with yt_dlp.YoutubeDL(pinterest_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+
+        image_url = info.get("thumbnail")
+        if not image_url:
+            thumbnails = info.get("thumbnails") or []
+            if thumbnails:
+                image_url = thumbnails[-1].get("url")
+        if not image_url:
+            image_url = info.get("url")
+
+        if not image_url:
+            return None
+
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        resp = requests.get(image_url, timeout=15, headers=headers)
+        if resp.status_code != 200:
+            return None
+
+        content_type = resp.headers.get("Content-Type", "")
+        if "image" not in content_type:
+            logger.warning(f"Pinterest javobi rasm emas ({content_type}): {url}")
+            return None
+
+        ext = "png" if "png" in content_type else "jpg"
+
+        os.makedirs(config.DOWNLOAD_DIR, exist_ok=True)
+        file_path = os.path.join(config.DOWNLOAD_DIR, f"{file_id}.{ext}")
+        with open(file_path, "wb") as f:
+            f.write(resp.content)
+        return file_path
+
+    except Exception:
+        logger.exception(f"Pinterest rasm yuklashda xatolik: {url}")
+        return None
+
+
+def download_media(url: str) -> DownloadResult:
+    """
+    Berilgan havoladan mediani yuklab oladi va lokal fayl yo'lini qaytaradi.
+    Fayl hajmi MAX_DOWNLOAD_SIZE_MB dan katta bo'lsa, xatolik qaytaradi.
+    """
+    platform = detect_platform(url)
+    if not platform:
+        return DownloadResult(
+            success=False,
+            error="Bu havola qo'llab-quvvatlanmaydi. Instagram, TikTok, Facebook, "
+                  "X yoki Pinterest havolasini yuboring.",
+        )
+
+    os.makedirs(config.DOWNLOAD_DIR, exist_ok=True)
+    file_id = str(uuid.uuid4())
+    output_template = os.path.join(config.DOWNLOAD_DIR, f"{file_id}.%(ext)s")
+
+    ydl_opts = {
+        "outtmpl": output_template,
+        "format": "best[height<=480][filesize<50M]/best[filesize<50M]/best",
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+        "max_filesize": config.MAX_DOWNLOAD_SIZE_MB * 1024 * 1024,
+        "youtube_include_dash_manifest": False,
+        "youtube_include_hls_manifest": False,
+        "concurrent_fragment_downloads": 8,
+        "socket_timeout": 10,
+        "nocheckcertificate": True,
+        "http_chunk_size": 10485760,
+        "ffmpeg_location": config.FFMPEG_PATH,
+    }
+
+    if platform == "Instagram":
+        ydl_opts.update(_instagram_cookie_opts())
+
+    try:
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                file_path = ydl.prepare_filename(info)
+        except yt_dlp.utils.DownloadError as e:
+            if "cookie" in str(e).lower() or "DPAPI" in str(e):
+                logger.warning(f"Cookie xatosi, cookie'siz qayta urinilmoqda: {e}")
+                fallback_opts = {k: v for k, v in ydl_opts.items() if k not in ("cookiesfrombrowser", "cookiefile")}
+                with yt_dlp.YoutubeDL(fallback_opts) as ydl:
+                    info = ydl.extract_info(url, download=True)
+                    file_path = ydl.prepare_filename(info)
+            else:
+                raise
+
+        if not os.path.exists(file_path):
+            return DownloadResult(success=False, error="Yuklashda xatolik yuz berdi.")
+
+        is_video = info.get("ext") in ("mp4", "mkv", "webm", "mov")
+        return DownloadResult(success=True, file_path=file_path, platform=platform, is_video=is_video)
+
+    except yt_dlp.utils.DownloadError as e:
+        error_text = str(e)
+
+        if platform == "Pinterest" and "No video formats found" in error_text:
+            image_path = _download_pinterest_image(url, file_id)
+            if image_path:
+                return DownloadResult(success=True, file_path=image_path, platform=platform, is_video=False)
+            return DownloadResult(success=False, error="Bu Pinterest pin'ni yuklab bo'lmadi.")
+
+        logger.warning(f"Download error for {url}: {e}")
+        return DownloadResult(
+            success=False,
+            error="Video juda katta yoki havola yopiq/xususiy bo'lishi mumkin.",
+        )
+    except Exception as e:
+        logger.exception(f"Unexpected error downloading {url}")
+        return DownloadResult(success=False, error=f"Kutilmagan xatolik: {e}")
+
+
+def cleanup_file(file_path: str) -> None:
+    try:
+        if file_path and os.path.exists(file_path):
+            os.remove(file_path)
+    except OSError:
+        pass
+
+
+def download_audio_from_url(url: str) -> DownloadResult:
+    """
+    Berilgan havoladan faqat audio qismini ajratib yuklaydi
+    ("Qo'shiqni yuklab olish" tugmasi uchun).
+    """
+    os.makedirs(config.DOWNLOAD_DIR, exist_ok=True)
+    file_id = str(uuid.uuid4())
+    output_template = os.path.join(config.DOWNLOAD_DIR, f"{file_id}.%(ext)s")
+
+    ydl_opts = {
+        "outtmpl": output_template,
+        "format": "bestaudio[ext=m4a][abr<=128]/bestaudio[abr<=128]/bestaudio/best",
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+        "max_filesize": config.MAX_DOWNLOAD_SIZE_MB * 1024 * 1024,
+        "nocheckcertificate": True,
+        "ffmpeg_location": config.FFMPEG_PATH,
+    }
+
+    platform = detect_platform(url)
+    if platform == "Instagram":
+        ydl_opts.update(_instagram_cookie_opts())
+
+    try:
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                file_path = ydl.prepare_filename(info)
+        except yt_dlp.utils.DownloadError as e:
+            if "cookie" in str(e).lower() or "DPAPI" in str(e):
+                fallback_opts = {k: v for k, v in ydl_opts.items() if k not in ("cookiesfrombrowser", "cookiefile")}
+                with yt_dlp.YoutubeDL(fallback_opts) as ydl:
+                    info = ydl.extract_info(url, download=True)
+                    file_path = ydl.prepare_filename(info)
+            else:
+                raise
+
+        if not os.path.exists(file_path):
+            return DownloadResult(success=False, error="Audio ajratib bo'lmadi.")
+
+        return DownloadResult(success=True, file_path=file_path, platform=platform, is_video=False)
+
+    except Exception as e:
+        logger.exception(f"Audio extraction error for {url}")
+        return DownloadResult(success=False, error="Bu havoladan audio ajratib bo'lmadi.")
