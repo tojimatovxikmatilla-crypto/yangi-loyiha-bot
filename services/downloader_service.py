@@ -71,6 +71,10 @@ def _instaloader_fallback(url: str, file_id: str) -> "DownloadResult | None":
     Instaloader mustaqil kod bilan ishlagani uchun, ba'zan yt-dlp ishlamay
     qolgan paytlarda ham ishlashda davom etadi.
     """
+    logger.warning(
+        f"Instaloader debug: username={bool(config.INSTAGRAM_USERNAME)}, "
+        f"session_file={config.INSTAGRAM_SESSION_FILE!r}"
+    )
     if not (config.INSTAGRAM_USERNAME and config.INSTAGRAM_SESSION_FILE):
         return None
 
