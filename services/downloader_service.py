@@ -195,7 +195,7 @@ def download_media(url: str) -> DownloadResult:
 
     ydl_opts = {
         "outtmpl": output_template,
-        "format": "best[height<=480][filesize<50M]/best[filesize<50M]/best",
+        "format": "best[height<=480][filesize<50M]/best[filesize<50M]/bestvideo[height<=720]+bestaudio/best",
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
