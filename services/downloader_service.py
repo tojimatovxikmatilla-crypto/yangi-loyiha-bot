@@ -67,6 +67,7 @@ def _instagram_cookie_opts() -> dict:
 
 def _youtube_cookie_opts() -> dict:
     cookies_file = getattr(config, "YOUTUBE_COOKIES_FILE", "") or ""
+    logger.warning(f"YouTube cookie debug: file={cookies_file!r}")
     if cookies_file:
         return {"cookiefile": cookies_file}
     return {}
