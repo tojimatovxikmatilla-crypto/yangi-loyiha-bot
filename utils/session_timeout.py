@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 """
 Sessiya vaqt tekshiruvi.
 
@@ -68,7 +67,7 @@ async def session_stop(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(
         "🔚 To'xtatildi. Istalgan funksiyani pastdagi menyudan tanlashingiz mumkin."
     )
-=======
+
 """
 Sessiya vaqt tekshiruvi.
 
@@ -138,5 +137,5 @@ async def session_stop(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(
         "🔚 To'xtatildi. Istalgan funksiyani pastdagi menyudan tanlashingiz mumkin."
     )
->>>>>>> f77d8220abf3a100f0a5668206524cc5a53bdd6c
+
     await callback.answer()
