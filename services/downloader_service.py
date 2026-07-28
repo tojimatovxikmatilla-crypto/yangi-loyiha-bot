@@ -65,6 +65,13 @@ def _instagram_cookie_opts() -> dict:
     return {}
 
 
+def _youtube_cookie_opts() -> dict:
+    cookies_file = getattr(config, "YOUTUBE_COOKIES_FILE", "") or ""
+    if cookies_file:
+        return {"cookiefile": cookies_file}
+    return {}
+
+
 def _instaloader_fallback(url: str, file_id: str) -> "DownloadResult | None":
     """
     yt-dlp Instagram'ni o'qiy olmagan hollarda ishlatiladigan zaxira usul.
@@ -203,6 +210,8 @@ def download_media(url: str) -> DownloadResult:
 
     if platform == "Instagram":
         ydl_opts.update(_instagram_cookie_opts())
+    elif platform == "YouTube":
+        ydl_opts.update(_youtube_cookie_opts())
 
     try:
         try:
@@ -277,6 +286,8 @@ def download_audio_from_url(url: str) -> DownloadResult:
     platform = detect_platform(url)
     if platform == "Instagram":
         ydl_opts.update(_instagram_cookie_opts())
+    elif platform == "YouTube":
+        ydl_opts.update(_youtube_cookie_opts())
 
     try:
         try:
