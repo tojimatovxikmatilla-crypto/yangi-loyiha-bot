@@ -1,13 +1,13 @@
 """
 Universal Downloader servisi.
 yt-dlp kutubxonasi orqali Instagram, TikTok, Facebook, X (Twitter), Pinterest
-havolalaridan video/rasm yuklab oladi.
-
-Nega yt-dlp: u eng ko'p platformani qo'llab-quvvatlaydi va tez-tez yangilanib turadi.
+havolalaridan video/rasm yuklab oladi. Instagram uchun yt-dlp ishlamasa,
+Instaloader orqali zaxira (fallback) usul ishlatiladi.
 """
 import os
 import re
 import uuid
+import shutil
 import logging
 from dataclasses import dataclass
 
@@ -32,6 +32,7 @@ SUPPORTED_DOMAINS = {
 }
 
 URL_REGEX = re.compile(r"https?://[^\s]+")
+INSTAGRAM_SHORTCODE_REGEX = re.compile(r"instagram\.com/(?:reel|p|tv)/([^/?#]+)")
 
 
 @dataclass
@@ -56,11 +57,6 @@ def detect_platform(url: str) -> str | None:
 
 
 def _instagram_cookie_opts() -> dict:
-    """
-    Instagram uchun avval serverga mo'ljallangan cookie faylini tekshiradi
-    (Railway Variables orqali berilgan), topilmasa lokal brauzer cookie'siga
-    (faqat kompyuterda ishlaganda foydali) qaytadi.
-    """
     cookies_file = getattr(config, "INSTAGRAM_COOKIES_FILE", "") or ""
     if cookies_file:
         return {"cookiefile": cookies_file}
@@ -69,14 +65,66 @@ def _instagram_cookie_opts() -> dict:
     return {}
 
 
+def _instaloader_fallback(url: str, file_id: str) -> "DownloadResult | None":
+    """
+    yt-dlp Instagram'ni o'qiy olmagan hollarda ishlatiladigan zaxira usul.
+    Instaloader mustaqil kod bilan ishlagani uchun, ba'zan yt-dlp ishlamay
+    qolgan paytlarda ham ishlashda davom etadi.
+    """
+    if not (config.INSTAGRAM_USERNAME and config.INSTAGRAM_SESSION_FILE):
+        return None
+
+    match = INSTAGRAM_SHORTCODE_REGEX.search(url)
+    if not match:
+        return None
+    shortcode = match.group(1)
+
+    try:
+        import instaloader
+
+        target_dir = os.path.join(config.DOWNLOAD_DIR, f"ig_{file_id}")
+        os.makedirs(target_dir, exist_ok=True)
+
+        L = instaloader.Instaloader(
+            dirname_pattern=target_dir,
+            save_metadata=False,
+            download_comments=False,
+            download_geotags=False,
+            post_metadata_txt_pattern="",
+            quiet=True,
+        )
+        L.load_session_from_file(config.INSTAGRAM_USERNAME, config.INSTAGRAM_SESSION_FILE)
+
+        post = instaloader.Post.from_shortcode(L.context, shortcode)
+        L.download_post(post, target=target_dir)
+
+        media_file = None
+        is_video = True
+        for f in os.listdir(target_dir):
+            if f.lower().endswith((".mp4",)):
+                media_file = os.path.join(target_dir, f)
+                is_video = True
+                break
+            if f.lower().endswith((".jpg", ".jpeg", ".png")) and not media_file:
+                media_file = os.path.join(target_dir, f)
+                is_video = False
+
+        if not media_file:
+            shutil.rmtree(target_dir, ignore_errors=True)
+            return None
+
+        final_path = os.path.join(config.DOWNLOAD_DIR, f"{file_id}{os.path.splitext(media_file)[1]}")
+        shutil.move(media_file, final_path)
+        shutil.rmtree(target_dir, ignore_errors=True)
+
+        return DownloadResult(success=True, file_path=final_path, platform="Instagram", is_video=is_video)
+
+    except Exception:
+        logger.exception(f"Instaloader fallback error for {url}")
+        return None
+
+
 def _download_pinterest_image(url: str, file_id: str) -> str | None:
-    """
-    Pinterest'dagi oddiy rasm-pin (video bo'lmagan) uchun — video formatini
-    qidirish o'rniga, sahifadan to'g'ridan-to'g'ri rasm havolasini olib,
-    uni yuklab olamiz. Yuklangan fayl HAQIQATAN rasm ekanligini
-    (Content-Type orqali) tekshiramiz — aks holda Telegram uni qabul
-    qilmaydi (IMAGE_PROCESS_FAILED xatosi).
-    """
     try:
         pinterest_opts = {
             "quiet": True,
@@ -121,10 +169,6 @@ def _download_pinterest_image(url: str, file_id: str) -> str | None:
 
 
 def download_media(url: str) -> DownloadResult:
-    """
-    Berilgan havoladan mediani yuklab oladi va lokal fayl yo'lini qaytaradi.
-    Fayl hajmi MAX_DOWNLOAD_SIZE_MB dan katta bo'lsa, xatolik qaytaradi.
-    """
     platform = detect_platform(url)
     if not platform:
         return DownloadResult(
@@ -186,6 +230,12 @@ def download_media(url: str) -> DownloadResult:
                 return DownloadResult(success=True, file_path=image_path, platform=platform, is_video=False)
             return DownloadResult(success=False, error="Bu Pinterest pin'ni yuklab bo'lmadi.")
 
+        if platform == "Instagram":
+            logger.warning(f"yt-dlp Instagram xatosi, Instaloader bilan sinalmoqda: {url}")
+            fallback_result = _instaloader_fallback(url, file_id)
+            if fallback_result:
+                return fallback_result
+
         logger.warning(f"Download error for {url}: {e}")
         return DownloadResult(
             success=False,
@@ -205,10 +255,6 @@ def cleanup_file(file_path: str) -> None:
 
 
 def download_audio_from_url(url: str) -> DownloadResult:
-    """
-    Berilgan havoladan faqat audio qismini ajratib yuklaydi
-    ("Qo'shiqni yuklab olish" tugmasi uchun).
-    """
     os.makedirs(config.DOWNLOAD_DIR, exist_ok=True)
     file_id = str(uuid.uuid4())
     output_template = os.path.join(config.DOWNLOAD_DIR, f"{file_id}.%(ext)s")
@@ -247,6 +293,6 @@ def download_audio_from_url(url: str) -> DownloadResult:
 
         return DownloadResult(success=True, file_path=file_path, platform=platform, is_video=False)
 
-    except Exception as e:
+    except Exception:
         logger.exception(f"Audio extraction error for {url}")
         return DownloadResult(success=False, error="Bu havoladan audio ajratib bo'lmadi.")

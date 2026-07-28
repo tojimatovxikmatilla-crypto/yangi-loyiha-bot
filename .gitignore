@@ -5,3 +5,8 @@ venv/
 downloads/
 music_cache/
 bot_data.db
+session-*.session
+*.cookies.txt
+www.instagram.com_cookies.txt
+youtube.com_cookies.txt
+instagram.com_cookies.txt
