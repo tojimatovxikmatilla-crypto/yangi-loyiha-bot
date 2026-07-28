@@ -14,6 +14,8 @@ from dataclasses import dataclass
 import yt_dlp
 import requests
 
+logging.getLogger(__name__).warning(f"yt-dlp versiyasi: {yt_dlp.version.__version__}")
+
 from config import config
 
 logger = logging.getLogger(__name__)
@@ -212,6 +214,8 @@ def download_media(url: str) -> DownloadResult:
         ydl_opts.update(_instagram_cookie_opts())
     elif platform == "YouTube":
         ydl_opts.update(_youtube_cookie_opts())
+        ydl_opts["no_warnings"] = False
+        ydl_opts["quiet"] = False
 
     try:
         try:
