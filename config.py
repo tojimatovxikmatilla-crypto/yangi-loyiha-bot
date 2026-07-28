@@ -27,14 +27,17 @@ def _write_session_file(b64_content: str, filename: str) -> str:
     Instaloader sessiya faylini (base64 ko'rinishida saqlangan) qayta tiklaydi.
     """
     if not b64_content:
+        print("SESSION DEBUG: INSTAGRAM_SESSION_B64 bo'sh yoki topilmadi")
         return ""
     path = os.path.join(tempfile.gettempdir(), filename)
     try:
         raw = base64.b64decode(b64_content)
         with open(path, "wb") as f:
             f.write(raw)
+        print(f"SESSION DEBUG: fayl yaratildi, {len(raw)} bayt, yo'l={path}")
         return path
-    except Exception:
+    except Exception as e:
+        print(f"SESSION DEBUG: base64 decode xatosi: {e!r}")
         return ""
 
 
