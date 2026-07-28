@@ -102,6 +102,14 @@ def init_db() -> None:
             """
         )
         conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS counters (
+                key TEXT PRIMARY KEY,
+                value INTEGER DEFAULT 0
+            )
+            """
+        )
+        conn.execute(
             "INSERT OR IGNORE INTO bot_settings (key, value) VALUES ('maintenance', '0')"
         )
         conn.execute(
