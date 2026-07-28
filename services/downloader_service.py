@@ -11,10 +11,14 @@ import shutil
 import logging
 from dataclasses import dataclass
 
+import shutil as _shutil
 import yt_dlp
 import requests
 
 logging.getLogger(__name__).warning(f"yt-dlp versiyasi: {yt_dlp.version.__version__}")
+logging.getLogger(__name__).warning(
+    f"node yo'li: {_shutil.which('node')!r}, nodejs yo'li: {_shutil.which('nodejs')!r}"
+)
 
 from config import config
 
