@@ -200,8 +200,6 @@ def download_media(url: str) -> DownloadResult:
         "no_warnings": True,
         "noplaylist": True,
         "max_filesize": config.MAX_DOWNLOAD_SIZE_MB * 1024 * 1024,
-        "youtube_include_dash_manifest": False,
-        "youtube_include_hls_manifest": False,
         "concurrent_fragment_downloads": 8,
         "socket_timeout": 10,
         "nocheckcertificate": True,
