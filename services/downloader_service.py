@@ -220,6 +220,15 @@ def download_media(url: str) -> DownloadResult:
                 info = ydl.extract_info(url, download=True)
                 file_path = ydl.prepare_filename(info)
         except yt_dlp.utils.DownloadError as e:
+            if "Requested format is not available" in str(e):
+                try:
+                    debug_opts = {k: v for k, v in ydl_opts.items() if k != "format"}
+                    with yt_dlp.YoutubeDL(debug_opts) as ydl_debug:
+                        debug_info = ydl_debug.extract_info(url, download=False)
+                        formats = debug_info.get("formats", [])
+                        logger.warning(f"Mavjud formatlar: {[(f.get('format_id'), f.get('height'), f.get('filesize') or f.get('filesize_approx')) for f in formats]}")
+                except Exception as debug_e:
+                    logger.warning(f"Format debug xatosi: {debug_e}")
             if "cookie" in str(e).lower() or "DPAPI" in str(e):
                 logger.warning(f"Cookie xatosi, cookie'siz qayta urinilmoqda: {e}")
                 fallback_opts = {k: v for k, v in ydl_opts.items() if k not in ("cookiesfrombrowser", "cookiefile")}
