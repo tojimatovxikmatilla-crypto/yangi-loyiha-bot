@@ -15,10 +15,17 @@ import shutil as _shutil
 import yt_dlp
 import requests
 
+import subprocess as _subprocess
+
 logging.getLogger(__name__).warning(f"yt-dlp versiyasi: {yt_dlp.version.__version__}")
 logging.getLogger(__name__).warning(
     f"node yo'li: {_shutil.which('node')!r}, nodejs yo'li: {_shutil.which('nodejs')!r}"
 )
+try:
+    _node_ver = _subprocess.run(["node", "--version"], capture_output=True, text=True, timeout=5)
+    logging.getLogger(__name__).warning(f"node versiyasi: {_node_ver.stdout.strip()} {_node_ver.stderr.strip()}")
+except Exception as _e:
+    logging.getLogger(__name__).warning(f"node versiyasini tekshirishda xato: {_e}")
 
 from config import config
 
