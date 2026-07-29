@@ -35,7 +35,7 @@ async def open_shazam_reply(message: Message, state: FSMContext, bot: Bot):
     await message.answer(PROMPT_TEXT, parse_mode="HTML")
 
 
-@router.message(ShazamStates.waiting_for_audio, F.voice | F.audio)
+@router.message(StateFilter(None), F.voice | F.audio)
 async def handle_shazam_audio(message: Message, state: FSMContext, bot: Bot):
     if not db_service.get_feature_enabled("shazam"):
         await message.answer(DISABLED_TEXT)
@@ -60,7 +60,6 @@ async def handle_shazam_audio(message: Message, state: FSMContext, bot: Bot):
 
     if not result.success:
         await status.edit_text(f"❌ {result.error}")
-        await state.set_state(ShazamStates.waiting_for_audio)
         return
 
     db_service.increment_counter("shazam_recognized")
@@ -93,14 +92,12 @@ async def handle_shazam_audio(message: Message, state: FSMContext, bot: Bot):
         await status.delete()
         db_service.increment_counter("music_downloaded")
         db_service.increment_counter("music_served_from_cache")
-        await state.set_state(ShazamStates.waiting_for_audio)
         return
 
     search_results = await asyncio.to_thread(search_music, search_query, 1)
 
     if not search_results:
         await status.edit_text(f"⚠️ Qo'shiq aniqlandi, lekin YouTube'dan topilmadi.")
-        await state.set_state(ShazamStates.waiting_for_audio)
         return
 
     music_result = await asyncio.to_thread(download_music_by_id, search_results[0].video_id)
@@ -134,5 +131,3 @@ async def handle_shazam_audio(message: Message, state: FSMContext, bot: Bot):
             )
         except Exception:
             pass
-
-    await state.set_state(ShazamStates.waiting_for_audio)

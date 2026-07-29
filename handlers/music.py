@@ -67,7 +67,7 @@ async def open_music_reply(message: Message, state: FSMContext, bot):
     await message.answer(PROMPT_TEXT, parse_mode="HTML")
 
 
-@router.message(MusicStates.waiting_for_query, F.text, ~F.text.in_(ALL_MENU_BUTTONS))
+@router.message(StateFilter(None), F.text, ~F.text.startswith("/"), ~F.text.regexp(r"https?://"), ~F.text.in_(ALL_MENU_BUTTONS))
 async def handle_music_query(message: Message, state: FSMContext, bot):
     if not db_service.get_feature_enabled("music"):
         await message.answer(DISABLED_TEXT)
@@ -76,7 +76,6 @@ async def handle_music_query(message: Message, state: FSMContext, bot):
 
     cached = db_service.get_cached_music_query(message.text)
     if cached and os.path.exists(cached["file_path"]):
-        await state.set_state(None)
         status_msg = await message.answer("⚡ Bazadan topildi, darhol yuborilmoqda...")
         me = await bot.get_me()
         add_group_kb = InlineKeyboardBuilder()
@@ -94,7 +93,6 @@ async def handle_music_query(message: Message, state: FSMContext, bot):
         await status_msg.delete()
         db_service.increment_counter("music_downloaded")
         db_service.increment_counter("music_served_from_cache")
-        await state.set_state(MusicStates.waiting_for_query)
         return
 
     status_msg = await message.answer("🔎 Qidirilmoqda...")
@@ -116,7 +114,6 @@ async def handle_music_query(message: Message, state: FSMContext, bot):
     ]
 
     await state.update_data(query=message.text, results=results_data)
-    await state.set_state(MusicStates.waiting_for_query)
 
     text, kb = _build_page_text_and_kb(message.text, results_data, page=0)
     await status_msg.edit_text(text, reply_markup=kb, parse_mode="HTML")

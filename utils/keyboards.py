@@ -47,9 +47,8 @@ ALL_MENU_BUTTONS = frozenset({
 def main_menu_reply_kb() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text=BTN_DOWNLOADER), KeyboardButton(text=BTN_AI)],
-            [KeyboardButton(text=BTN_MUSIC), KeyboardButton(text=BTN_SHAZAM)],
-            [KeyboardButton(text=BTN_CONTACT_ADMIN), KeyboardButton(text=BTN_ABOUT)],
+            [KeyboardButton(text=BTN_AI), KeyboardButton(text=BTN_CONTACT_ADMIN)],
+            [KeyboardButton(text=BTN_ABOUT)],
         ],
         resize_keyboard=True,
         # is_persistent=False — bu, aksincha, Telegram'ga klaviatura yonida
