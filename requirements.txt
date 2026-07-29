@@ -15,3 +15,4 @@ audioop-lts
 instaloader
 pillow-heif
 bgutil-ytdlp-pot-provider
+ytdlp-jsc
