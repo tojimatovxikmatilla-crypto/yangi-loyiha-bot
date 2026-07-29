@@ -45,7 +45,7 @@ async def forward_to_admin(message: Message, state: FSMContext, bot: Bot):
         except Exception:
             pass
     await message.answer("✅ Xabaringiz adminga yuborildi. Tez orada javob berishadi.")
-    await state.clear()
+    await state.set_state(ContactAdminStates.waiting_for_message)
 
 
 # ---------- Admin javob yozishi ----------
