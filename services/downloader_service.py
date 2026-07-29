@@ -56,6 +56,9 @@ class DownloadResult:
     error: str | None = None
     is_video: bool = True
     title: str | None = None
+    duration: int | None = None
+    width: int | None = None
+    height: int | None = None
 
 
 def extract_url(text: str) -> str | None:
@@ -209,7 +212,14 @@ def download_media(url: str) -> DownloadResult:
 
     ydl_opts = {
         "outtmpl": output_template,
-        "format": "best[height<=480][filesize<50M]/best[filesize<50M]/bestvideo[height<=720]+bestaudio/best",
+        "format": (
+            "best[height<=480][ext=mp4][filesize<50M]"
+            "/bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]"
+            "/best[height<=480][filesize<50M]"
+            "/bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]"
+            "/bestvideo[height<=720]+bestaudio/best"
+        ),
+        "merge_output_format": "mp4",
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
@@ -255,10 +265,17 @@ def download_media(url: str) -> DownloadResult:
         if not os.path.exists(file_path):
             return DownloadResult(success=False, error="Yuklashda xatolik yuz berdi.")
 
-        is_video = info.get("ext") in ("mp4", "mkv", "webm", "mov")
+        # merge_output_format tufayli haqiqiy fayl kengaytmasi info["ext"]dan farq
+        # qilishi mumkin (masalan webm+m4a → mp4ga birlashtiriladi) — shuning uchun
+        # haqiqiy fayl yo'lidan tekshiramiz.
+        actual_ext = os.path.splitext(file_path)[1].lstrip(".").lower()
+        is_video = actual_ext in ("mp4", "mkv", "webm", "mov")
         return DownloadResult(
             success=True, file_path=file_path, platform=platform, is_video=is_video,
             title=info.get("title", ""),
+            duration=info.get("duration"),
+            width=info.get("width"),
+            height=info.get("height"),
         )
 
     except yt_dlp.utils.DownloadError as e:

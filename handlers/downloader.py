@@ -94,7 +94,15 @@ async def handle_link(message: Message, state: FSMContext, bot: Bot, **kwargs):
         caption = f"📥 @{me.username} orqali yuklab olindi"
 
         if result.is_video:
-            await message.answer_video(file, caption=caption, reply_markup=action_kb.as_markup())
+            await message.answer_video(
+                file,
+                caption=caption,
+                reply_markup=action_kb.as_markup(),
+                duration=result.duration or 0,
+                width=result.width or 0,
+                height=result.height or 0,
+                supports_streaming=True,
+            )
         else:
             await message.answer_photo(file, caption=caption, reply_markup=action_kb.as_markup())
         await status_msg.delete()
