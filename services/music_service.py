@@ -51,14 +51,21 @@ def _browser_cookies_opt() -> dict:
     return {}
 
 
-# Sarlavhada bo'lsa ustuvorlikni OSHIRADIGAN so'zlar (faqat tinglash uchun mos)
-_AUDIO_BOOST_KEYWORDS = ["official audio", "audio", "lyrics", "lyric video", "visualizer"]
+# Sarlavhada bo'lsa ustuvorlikni OSHIRADIGAN so'zlar (faqat tinglash uchun mos).
+# "mp3" va "audio" eng yuqori ustuvorlikka ega, chunki foydalanuvchi aynan
+# tinglash uchun mo'ljallangan versiyani xohlaydi, klip/video emas.
+_AUDIO_BOOST_KEYWORDS = [
+    "mp3", "official audio", "audio only", "full audio", "audio",
+    "lyrics", "lyric video", "visualizer", "no video",
+]
 
-# Sarlavhada bo'lsa ustuvorlikni PASAYTIRADIGAN so'zlar (video-markazli kontent)
+# Sarlavhada bo'lsa ustuvorlikni PASAYTIRADIGAN so'zlar (video-markazli/"haqiqiy"
+# klip kontenti) — bular kuchliroq jazolanadi, chunki foydalanuvchi ularni
+# emas, tinglash versiyasini xohlaydi.
 _AUDIO_PENALTY_KEYWORDS = [
-    "official video", "official mv", "m/v", "live", "reaction", "cover",
-    "behind the scenes", "shorts", "clip", "teaser", "trailer", "concert",
-    "performance", "dance practice",
+    "official video", "official mv", "official music video", "music video",
+    "m/v", "mv", "live", "reaction", "cover", "behind the scenes", "shorts",
+    "clip", "teaser", "trailer", "concert", "performance", "dance practice",
 ]
 
 
@@ -68,10 +75,11 @@ def _audio_priority_score(title: str) -> int:
     score = 0
     for keyword in _AUDIO_BOOST_KEYWORDS:
         if keyword in lowered:
-            score += 10
+            # "mp3" eng aniq belgi bo'lgani uchun qo'shimcha ustuvorlik beramiz.
+            score += 15 if keyword == "mp3" else 10
     for keyword in _AUDIO_PENALTY_KEYWORDS:
         if keyword in lowered:
-            score -= 5
+            score -= 8
     return score
 
 
@@ -92,14 +100,18 @@ def search_music(query: str, limit: int = 5) -> list[MusicSearchItem]:
     }
 
     fetch_count = max(limit * 3, 10)
-    search_query = f"ytsearch{fetch_count}:{query} audio"
+    search_query = f"ytsearch{fetch_count}:{query} audio mp3"
 
     try:
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(search_query, download=False)
         except yt_dlp.utils.DownloadError as e:
-            if "cookie" in str(e).lower() or "DPAPI" in str(e):
+            # Diqqat: faqat cookie FAYLI buzuq/o'qib bo'lmaydigan holatlarda True
+            # bo'lishi kerak. "Sign in to confirm you're not a bot" xabarining
+            # o'zida ham maslahat sifatida "cookies" so'zi uchraydi, shuning uchun
+            # oddiy "cookie" so'zini emas, aniq xato turlarini tekshiramiz.
+            if "DPAPI" in str(e) or "cookie database" in str(e).lower():
                 logger.warning(f"Cookie xatosi, cookie'siz qayta urinilmoqda: {e}")
                 fallback_opts = {k: v for k, v in ydl_opts.items() if k not in ("cookiesfrombrowser", "cookiefile")}
                 with yt_dlp.YoutubeDL(fallback_opts) as ydl:
@@ -183,7 +195,7 @@ def download_music_by_id(video_id: str) -> MusicResult:
                 info = ydl.extract_info(url, download=True)
                 file_path = ydl.prepare_filename(info)
         except yt_dlp.utils.DownloadError as e:
-            if "cookie" in str(e).lower() or "DPAPI" in str(e):
+            if "DPAPI" in str(e) or "cookie database" in str(e).lower():
                 logger.warning(f"Cookie xatosi, cookie'siz qayta yuklanmoqda: {e}")
                 fallback_opts = {k: v for k, v in ydl_opts.items() if k not in ("cookiesfrombrowser", "cookiefile")}
                 with yt_dlp.YoutubeDL(fallback_opts) as ydl:
@@ -205,6 +217,12 @@ def download_music_by_id(video_id: str) -> MusicResult:
 
     except yt_dlp.utils.DownloadError as e:
         error_text = str(e)
+        if "Sign in to confirm you" in error_text and "bot" in error_text.lower():
+            logger.warning(f"YouTube bot-tekshiruvi bloklandi for '{video_id}': {e}")
+            return MusicResult(
+                success=False,
+                error="YouTube bu qo'shiqni bot-tekshiruvidan o'tkazmadi. Boshqa natija tanlab ko'ring.",
+            )
         if "Sign in to confirm your age" in error_text:
             hint = (
                 "Bu qo'shiq YouTube tomonidan yosh cheklovi qo'yilgan. "
