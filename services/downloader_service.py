@@ -182,6 +182,11 @@ def _download_pinterest_image(url: str, file_id: str) -> str | None:
             return None
 
         content_type = resp.headers.get("Content-Type", "")
+        logger.warning(
+            f"Pinterest rasm debug: image_url={image_url!r}, "
+            f"content_type={content_type!r}, bytes={len(resp.content)}, "
+            f"first_bytes={resp.content[:16]!r}"
+        )
         if "image" not in content_type:
             logger.warning(f"Pinterest javobi rasm emas ({content_type}): {url}")
             return None
@@ -194,7 +199,7 @@ def _download_pinterest_image(url: str, file_id: str) -> str | None:
             image = Image.open(BytesIO(resp.content))
             image = image.convert("RGB")
         except Exception:
-            logger.warning(f"Pinterest rasmni ochib bo'lmadi (buzuq fayl?): {url}")
+            logger.exception(f"Pinterest rasmni ochib bo'lmadi (buzuq fayl?): {url}")
             return None
 
         if image.width < 10 or image.height < 10:
