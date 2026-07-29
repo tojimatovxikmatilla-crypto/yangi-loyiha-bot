@@ -6,6 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from services.downloader_service import extract_url, detect_platform, download_media, download_audio_from_url, cleanup_file
+from services.music_service import search_music, download_music_by_id, cleanup_file as cleanup_music_file
 from services import db_service
 from aiogram.filters import StateFilter
 from utils.keyboards import back_to_menu_kb, BTN_DOWNLOADER
@@ -15,6 +16,7 @@ router = Router(name="downloader")
 # Callback data uzunligi cheklangani uchun (64 belgi), to'liq havolani
 # saqlash o'rniga qisqa ID orqali eslab qolamiz.
 _pending_audio_urls: dict[str, str] = {}
+_pending_titles: dict[str, str] = {}
 
 PROMPT_TEXT = (
     "⬇️ <b>Universal Downloader</b>\n\n"
@@ -80,7 +82,11 @@ async def handle_link(message: Message, state: FSMContext, bot: Bot, **kwargs):
             import uuid as _uuid
             short_id = _uuid.uuid4().hex[:12]
             _pending_audio_urls[short_id] = url
-            action_kb.button(text="🎵 Qo'shiqni yuklab olish", callback_data=f"dl_audio:{short_id}")
+            _pending_titles[short_id] = result.title or ""
+
+            if result.title:
+                action_kb.button(text="🎵 Musiqani yuklash", callback_data=f"dl_music_search:{short_id}")
+            action_kb.button(text="✂️ Musiqani ajratib olish", callback_data=f"dl_audio:{short_id}")
 
         action_kb.button(text="➕ Guruhga qo'shish", url=f"https://t.me/{me.username}?startgroup=true")
         action_kb.adjust(1)
@@ -129,3 +135,44 @@ async def handle_extract_audio(callback: CallbackQuery, bot: Bot):
         db_service.increment_counter("music_downloaded")
     finally:
         cleanup_file(result.file_path)
+
+
+@router.callback_query(F.data.startswith("dl_music_search:"))
+async def handle_music_search_from_video(callback: CallbackQuery, bot: Bot):
+    short_id = callback.data.split(":", 1)[1]
+    title = _pending_titles.get(short_id)
+
+    if not title:
+        await callback.answer("⚠️ Ma'lumot eskirgan, videoni qayta yuboring.", show_alert=True)
+        return
+
+    await callback.answer("⏳ Qo'shiq qidirilmoqda...")
+    status_msg = await callback.message.answer("🔎 Qo'shiq qidirilmoqda...")
+
+    search_results = await asyncio.to_thread(search_music, title, 1)
+
+    if not search_results:
+        await status_msg.edit_text("❌ Bu video bo'yicha qo'shiq topilmadi.")
+        return
+
+    result = await asyncio.to_thread(download_music_by_id, search_results[0].video_id)
+
+    if not result.success:
+        await status_msg.edit_text(f"❌ {result.error}")
+        return
+
+    try:
+        me = await bot.get_me()
+        audio_kb = InlineKeyboardBuilder()
+        audio_kb.button(text="➕ Guruhga qo'shish", url=f"https://t.me/{me.username}?startgroup=true")
+
+        await callback.message.answer_audio(
+            FSInputFile(result.file_path),
+            title=result.title,
+            caption=f"📥 @{me.username} orqali yuklab olindi",
+            reply_markup=audio_kb.as_markup(),
+        )
+        await status_msg.delete()
+        db_service.increment_counter("music_downloaded")
+    finally:
+        cleanup_music_file(result.file_path)

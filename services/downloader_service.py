@@ -55,6 +55,7 @@ class DownloadResult:
     platform: str | None = None
     error: str | None = None
     is_video: bool = True
+    title: str | None = None
 
 
 def extract_url(text: str) -> str | None:
@@ -255,7 +256,10 @@ def download_media(url: str) -> DownloadResult:
             return DownloadResult(success=False, error="Yuklashda xatolik yuz berdi.")
 
         is_video = info.get("ext") in ("mp4", "mkv", "webm", "mov")
-        return DownloadResult(success=True, file_path=file_path, platform=platform, is_video=is_video)
+        return DownloadResult(
+            success=True, file_path=file_path, platform=platform, is_video=is_video,
+            title=info.get("title", ""),
+        )
 
     except yt_dlp.utils.DownloadError as e:
         error_text = str(e)
