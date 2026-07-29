@@ -238,6 +238,31 @@ def download_music_by_id(video_id: str) -> MusicResult:
         return MusicResult(success=False, error=f"Kutilmagan xatolik: {e}")
 
 
+def download_music_with_fallback(candidates: list[MusicSearchItem], max_attempts: int = 5) -> MusicResult:
+    """
+    Berilgan nomzodlar ro'yxatidan birinchisini yuklashga urinadi. Agar YouTube
+    bot-tekshiruvi sabab muvaffaqiyatsiz bo'lsa, avtomatik ravishda keyingi
+    nomzodni sinaydi (muvaffaqiyatli topilguncha yoki max_attempts tugaguncha).
+    Boshqa turdagi xatolarda (masalan fayl juda katta) darhol to'xtaydi.
+    """
+    last_error = "Hech qanday natija topilmadi."
+
+    for item in candidates[:max_attempts]:
+        result = download_music_by_id(item.video_id)
+        if result.success:
+            return result
+
+        last_error = result.error or last_error
+        # Faqat bot-tekshiruvi xatosida keyingisiga o'tamiz — boshqa xatolarda
+        # (masalan hajm chegarasi) qayta urinish foydasiz.
+        if "bot-tekshiruvidan" not in (result.error or ""):
+            return result
+
+        logger.info(f"'{item.video_id}' bloklandi, keyingi nomzodga o'tilmoqda...")
+
+    return MusicResult(success=False, error=last_error)
+
+
 def cleanup_file(file_path: str) -> None:
     try:
         if file_path and os.path.exists(file_path):

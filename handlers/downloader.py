@@ -6,7 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from services.downloader_service import extract_url, detect_platform, download_media, download_audio_from_url, cleanup_file
-from services.music_service import search_music, download_music_by_id, cleanup_file as cleanup_music_file
+from services.music_service import search_music, download_music_by_id, download_music_with_fallback, cleanup_file as cleanup_music_file
 from services import db_service
 from aiogram.filters import StateFilter
 from utils.keyboards import back_to_menu_kb, BTN_DOWNLOADER
@@ -149,13 +149,13 @@ async def handle_music_search_from_video(callback: CallbackQuery, bot: Bot):
     await callback.answer("⏳ Qo'shiq qidirilmoqda...")
     status_msg = await callback.message.answer("🔎 Qo'shiq qidirilmoqda...")
 
-    search_results = await asyncio.to_thread(search_music, title, 1)
+    search_results = await asyncio.to_thread(search_music, title, 5)
 
     if not search_results:
         await status_msg.edit_text("❌ Bu video bo'yicha qo'shiq topilmadi.")
         return
 
-    result = await asyncio.to_thread(download_music_by_id, search_results[0].video_id)
+    result = await asyncio.to_thread(download_music_with_fallback, search_results)
 
     if not result.success:
         await status_msg.edit_text(f"❌ {result.error}")
