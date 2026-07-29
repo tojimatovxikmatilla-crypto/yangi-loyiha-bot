@@ -13,3 +13,4 @@ requests==2.32.3
 shazamio
 audioop-lts
 instaloader
+pillow-heif

@@ -16,6 +16,8 @@ import yt_dlp
 import requests
 from PIL import Image
 from io import BytesIO
+import pillow_heif
+pillow_heif.register_heif_opener()
 
 import subprocess as _subprocess
 
