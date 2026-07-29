@@ -112,6 +112,7 @@ def search_music(query: str, limit: int = 5) -> list[MusicSearchItem]:
         "skip_download": True,
         "default_search": "ytsearch",
         "js_runtimes": {"node": {}},
+        "remote_components": {"ejs:github"},
         **_browser_cookies_opt(),
         **_pot_provider_opt(),
     }
@@ -199,6 +200,7 @@ def download_music_by_id(video_id: str) -> MusicResult:
         "noplaylist": True,
         "max_filesize": config.MAX_DOWNLOAD_SIZE_MB * 1024 * 1024,
         "js_runtimes": {"node": {}},
+        "remote_components": {"ejs:github"},
         "concurrent_fragment_downloads": 8,
         "socket_timeout": 10,
         "nocheckcertificate": True,

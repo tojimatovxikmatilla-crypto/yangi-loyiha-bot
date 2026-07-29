@@ -94,6 +94,19 @@ def _youtube_cookie_opts() -> dict:
     return {}
 
 
+def _youtube_js_runtime_opts() -> dict:
+    """
+    yt-dlp'ning yangi EJS (challenge solver) tizimi uchun: qaysi JS runtime
+    ishlatilishini (node — konteynerda mavjud) va solver skriptini qayerdan
+    yuklab olishni (GitHub) aniq ko'rsatamiz. Buni bermasak, yt-dlp signature/n
+    challenge'larini yecha olmay, "Only images are available" xatosiga tushadi.
+    """
+    return {
+        "js_runtimes": {"node": {}},
+        "remote_components": {"ejs:github"},
+    }
+
+
 def _youtube_pot_provider_opts() -> dict:
     """
     bgutil-ytdlp-pot-provider orqali PO Token oladi — bu YouTube'ning
@@ -288,6 +301,7 @@ def download_media(url: str) -> DownloadResult:
     elif platform == "YouTube":
         ydl_opts.update(_youtube_cookie_opts())
         ydl_opts.update(_youtube_pot_provider_opts())
+        ydl_opts.update(_youtube_js_runtime_opts())
         ydl_opts["no_warnings"] = False
         ydl_opts["quiet"] = False
 
@@ -389,6 +403,7 @@ def download_audio_from_url(url: str) -> DownloadResult:
     elif platform == "YouTube":
         ydl_opts.update(_youtube_cookie_opts())
         ydl_opts.update(_youtube_pot_provider_opts())
+        ydl_opts.update(_youtube_js_runtime_opts())
 
     try:
         try:
