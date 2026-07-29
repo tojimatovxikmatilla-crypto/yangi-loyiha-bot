@@ -231,7 +231,13 @@ def download_media(url: str) -> DownloadResult:
         "ffmpeg_location": config.FFMPEG_PATH,
     }
 
-    if platform == "Instagram":
+    if platform == "Pinterest":
+        # Pinterest postlari ko'pincha rasm bo'ladi — video-ga xos format
+        # zanjiri (ext=mp4/bestvideo+bestaudio) ularga mos kelmaydi va
+        # noto'g'ri xato qaytaradi. Shu uchun bu yerda soddaroq formatga
+        # qaytamiz, haqiqiy rasm holatini pastdagi fallback aniqlaydi.
+        ydl_opts["format"] = "best/bestvideo+bestaudio"
+    elif platform == "Instagram":
         ydl_opts.update(_instagram_cookie_opts())
     elif platform == "YouTube":
         ydl_opts.update(_youtube_cookie_opts())
@@ -281,7 +287,10 @@ def download_media(url: str) -> DownloadResult:
     except yt_dlp.utils.DownloadError as e:
         error_text = str(e)
 
-        if platform == "Pinterest" and "No video formats found" in error_text:
+        if platform == "Pinterest" and (
+            "No video formats found" in error_text
+            or "Requested format is not available" in error_text
+        ):
             image_path = _download_pinterest_image(url, file_id)
             if image_path:
                 return DownloadResult(success=True, file_path=image_path, platform=platform, is_video=False)
