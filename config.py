@@ -15,10 +15,13 @@ load_dotenv()
 
 def _write_cookie_file(content: str, filename: str) -> str:
     if not content:
+        print(f"COOKIE DEBUG: {filename} uchun environment o'zgaruvchisi bo'sh yoki topilmadi")
         return ""
     path = os.path.join(tempfile.gettempdir(), filename)
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
+    first_line = content.strip().splitlines()[0] if content.strip() else "(bo'sh)"
+    print(f"COOKIE DEBUG: {filename} yaratildi, {len(content)} belgi, yo'l={path}, birinchi qator: {first_line!r}")
     return path
 
 
