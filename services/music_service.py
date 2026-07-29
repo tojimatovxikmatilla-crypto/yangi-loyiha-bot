@@ -87,6 +87,7 @@ def search_music(query: str, limit: int = 5) -> list[MusicSearchItem]:
         "extract_flat": True,
         "skip_download": True,
         "default_search": "ytsearch",
+        "js_runtimes": {"node": {}},
         **_browser_cookies_opt(),
     }
 
@@ -168,8 +169,7 @@ def download_music_by_id(video_id: str) -> MusicResult:
         "no_warnings": True,
         "noplaylist": True,
         "max_filesize": config.MAX_DOWNLOAD_SIZE_MB * 1024 * 1024,
-        "youtube_include_dash_manifest": False,
-        "youtube_include_hls_manifest": False,
+        "js_runtimes": {"node": {}},
         "concurrent_fragment_downloads": 8,
         "socket_timeout": 10,
         "nocheckcertificate": True,
