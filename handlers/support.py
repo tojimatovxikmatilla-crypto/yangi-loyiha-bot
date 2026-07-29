@@ -18,8 +18,9 @@ from config import config
 router = Router(name="support")
 
 
-@router.message(StateFilter(None), F.text == BTN_CONTACT_ADMIN)
+@router.message(F.text == BTN_CONTACT_ADMIN)
 async def start_contact_admin(message: Message, state: FSMContext, bot: Bot):
+    await state.clear()
     await state.set_state(ContactAdminStates.waiting_for_message)
     await message.answer("✉️ Adminga yubormoqchi bo'lgan xabaringizni yozing.")
 
