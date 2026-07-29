@@ -236,7 +236,15 @@ def download_media(url: str) -> DownloadResult:
         # zanjiri (ext=mp4/bestvideo+bestaudio) ularga mos kelmaydi va
         # noto'g'ri xato qaytaradi. Shu uchun bu yerda soddaroq formatga
         # qaytamiz, haqiqiy rasm holatini pastdagi fallback aniqlaydi.
+        # retries/socket_timeout'ni qattiq cheklab qo'yamiz — aks holda
+        # video formati topilmaganda yt-dlp uzoq vaqt qayta urinib,
+        # foydalanuvchiga bot "qotgandek" ko'rinishi mumkin.
         ydl_opts["format"] = "best/bestvideo+bestaudio"
+        ydl_opts["ignore_no_formats_error"] = True
+        ydl_opts["retries"] = 1
+        ydl_opts["fragment_retries"] = 1
+        ydl_opts["socket_timeout"] = 8
+        ydl_opts["extractor_retries"] = 1
     elif platform == "Instagram":
         ydl_opts.update(_instagram_cookie_opts())
     elif platform == "YouTube":
