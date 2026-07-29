@@ -94,6 +94,23 @@ def _youtube_cookie_opts() -> dict:
     return {}
 
 
+def _youtube_pot_provider_opts() -> dict:
+    """
+    bgutil-ytdlp-pot-provider orqali PO Token oladi — bu YouTube'ning
+    "Sign in to confirm you're not a bot" bloklashini cookie'siz ham
+    yechishga yordam beradi. Provider manzili YTDLP_POT_PROVIDER_URL
+    environment o'zgaruvchisidan olinadi (Railway'dagi alohida xizmat).
+    """
+    base_url = getattr(config, "YTDLP_POT_PROVIDER_URL", "") or ""
+    if not base_url:
+        return {}
+    return {
+        "extractor_args": {
+            "youtubepot-bgutilhttp": {"base_url": [base_url]},
+        },
+    }
+
+
 def _instaloader_fallback(url: str, file_id: str) -> "DownloadResult | None":
     """
     yt-dlp Instagram'ni o'qiy olmagan hollarda ishlatiladigan zaxira usul.
@@ -270,6 +287,7 @@ def download_media(url: str) -> DownloadResult:
         ydl_opts.update(_instagram_cookie_opts())
     elif platform == "YouTube":
         ydl_opts.update(_youtube_cookie_opts())
+        ydl_opts.update(_youtube_pot_provider_opts())
         ydl_opts["no_warnings"] = False
         ydl_opts["quiet"] = False
 
@@ -370,6 +388,7 @@ def download_audio_from_url(url: str) -> DownloadResult:
         ydl_opts.update(_instagram_cookie_opts())
     elif platform == "YouTube":
         ydl_opts.update(_youtube_cookie_opts())
+        ydl_opts.update(_youtube_pot_provider_opts())
 
     try:
         try:

@@ -73,6 +73,8 @@ class Config:
 
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
 
+    YTDLP_POT_PROVIDER_URL: str = os.getenv("YTDLP_POT_PROVIDER_URL", "")
+
     ADMIN_IDS: list[int] = field(default_factory=lambda: [
         int(x.strip()) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip().isdigit()
     ])

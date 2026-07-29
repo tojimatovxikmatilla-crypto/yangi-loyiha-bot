@@ -51,6 +51,22 @@ def _browser_cookies_opt() -> dict:
     return {}
 
 
+def _pot_provider_opt() -> dict:
+    """
+    bgutil-ytdlp-pot-provider orqali PO Token oladi — YouTube'ning
+    "Sign in to confirm you're not a bot" bloklashini cookie'siz ham
+    yechishga yordam beradi.
+    """
+    base_url = getattr(config, "YTDLP_POT_PROVIDER_URL", "") or ""
+    if not base_url:
+        return {}
+    return {
+        "extractor_args": {
+            "youtubepot-bgutilhttp": {"base_url": [base_url]},
+        },
+    }
+
+
 # Sarlavhada bo'lsa ustuvorlikni OSHIRADIGAN so'zlar (faqat tinglash uchun mos).
 # "mp3" va "audio" eng yuqori ustuvorlikka ega, chunki foydalanuvchi aynan
 # tinglash uchun mo'ljallangan versiyani xohlaydi, klip/video emas.
@@ -97,6 +113,7 @@ def search_music(query: str, limit: int = 5) -> list[MusicSearchItem]:
         "default_search": "ytsearch",
         "js_runtimes": {"node": {}},
         **_browser_cookies_opt(),
+        **_pot_provider_opt(),
     }
 
     fetch_count = max(limit * 3, 10)
@@ -187,6 +204,7 @@ def download_music_by_id(video_id: str) -> MusicResult:
         "nocheckcertificate": True,
         "http_chunk_size": 10485760,
         **_browser_cookies_opt(),
+        **_pot_provider_opt(),
     }
 
     try:
