@@ -14,6 +14,8 @@ from dataclasses import dataclass
 import shutil as _shutil
 import yt_dlp
 import requests
+from PIL import Image
+from io import BytesIO
 
 import subprocess as _subprocess
 
@@ -184,12 +186,24 @@ def _download_pinterest_image(url: str, file_id: str) -> str | None:
             logger.warning(f"Pinterest javobi rasm emas ({content_type}): {url}")
             return None
 
-        ext = "png" if "png" in content_type else "jpg"
+        # Pinterest ba'zan webp yoki boshqa format qaytaradi, buni oddiy
+        # Content-Type asosida .jpg deb nomlash Telegram'da IMAGE_PROCESS_FAILED
+        # xatosiga olib keladi. Shu uchun Pillow bilan qayta ochib, har doim
+        # haqiqiy JPEG (RGB) sifatida saqlaymiz.
+        try:
+            image = Image.open(BytesIO(resp.content))
+            image = image.convert("RGB")
+        except Exception:
+            logger.warning(f"Pinterest rasmni ochib bo'lmadi (buzuq fayl?): {url}")
+            return None
+
+        if image.width < 10 or image.height < 10:
+            logger.warning(f"Pinterest rasmi juda kichik ({image.width}x{image.height}): {url}")
+            return None
 
         os.makedirs(config.DOWNLOAD_DIR, exist_ok=True)
-        file_path = os.path.join(config.DOWNLOAD_DIR, f"{file_id}.{ext}")
-        with open(file_path, "wb") as f:
-            f.write(resp.content)
+        file_path = os.path.join(config.DOWNLOAD_DIR, f"{file_id}.jpg")
+        image.save(file_path, "JPEG", quality=90)
         return file_path
 
     except Exception:
