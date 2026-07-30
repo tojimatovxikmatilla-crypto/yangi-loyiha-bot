@@ -275,11 +275,15 @@ def download_media(url: str) -> DownloadResult:
         "no_warnings": True,
         "noplaylist": True,
         "max_filesize": config.MAX_DOWNLOAD_SIZE_MB * 1024 * 1024,
-        "concurrent_fragment_downloads": 8,
+        "concurrent_fragment_downloads": 16,
         "socket_timeout": 10,
         "nocheckcertificate": True,
         "http_chunk_size": 10485760,
         "ffmpeg_location": config.FFMPEG_PATH,
+        "external_downloader": "aria2c",
+        "external_downloader_args": {
+            "aria2c": ["-x", "16", "-s", "16", "-k", "1M"],
+        },
     }
 
     if platform == "Pinterest":
@@ -395,6 +399,10 @@ def download_audio_from_url(url: str) -> DownloadResult:
         "max_filesize": config.MAX_DOWNLOAD_SIZE_MB * 1024 * 1024,
         "nocheckcertificate": True,
         "ffmpeg_location": config.FFMPEG_PATH,
+        "external_downloader": "aria2c",
+        "external_downloader_args": {
+            "aria2c": ["-x", "16", "-s", "16", "-k", "1M"],
+        },
     }
 
     platform = detect_platform(url)

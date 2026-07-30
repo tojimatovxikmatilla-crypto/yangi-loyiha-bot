@@ -201,10 +201,14 @@ def download_music_by_id(video_id: str) -> MusicResult:
         "max_filesize": config.MAX_DOWNLOAD_SIZE_MB * 1024 * 1024,
         "js_runtimes": {"node": {}},
         "remote_components": {"ejs:github"},
-        "concurrent_fragment_downloads": 8,
+        "concurrent_fragment_downloads": 16,
         "socket_timeout": 10,
         "nocheckcertificate": True,
         "http_chunk_size": 10485760,
+        "external_downloader": "aria2c",
+        "external_downloader_args": {
+            "aria2c": ["-x", "16", "-s", "16", "-k", "1M"],
+        },
         **_browser_cookies_opt(),
         **_pot_provider_opt(),
     }
