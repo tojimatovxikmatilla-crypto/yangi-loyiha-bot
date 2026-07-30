@@ -357,6 +357,7 @@ def download_media(url: str) -> DownloadResult:
     output_template = os.path.join(config.DOWNLOAD_DIR, f"{file_id}.%(ext)s")
 
     ydl_opts = {
+        "verbose": True,
         "outtmpl": output_template,
         "format": (
             "best[height<=480][ext=mp4][filesize<50M]"
@@ -490,6 +491,7 @@ def download_audio_from_url(url: str) -> DownloadResult:
     output_template = os.path.join(config.DOWNLOAD_DIR, f"{file_id}.%(ext)s")
 
     ydl_opts = {
+        "verbose": True,
         "outtmpl": output_template,
         "format": "bestaudio[ext=m4a][abr<=128]/bestaudio[abr<=128]/bestaudio/best",
         "quiet": True,

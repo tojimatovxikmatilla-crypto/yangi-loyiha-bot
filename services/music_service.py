@@ -109,6 +109,7 @@ def search_music(query: str, limit: int = 5) -> list[MusicSearchItem]:
     ustuvor qilib qaytaradi.
     """
     ydl_opts = {
+        "verbose": True,
         "quiet": True,
         "no_warnings": True,
         "extract_flat": True,
@@ -198,6 +199,7 @@ def download_music_by_id(video_id: str) -> MusicResult:
     output_template = os.path.join(CACHE_DIR, f"{file_id}.%(ext)s")
 
     ydl_opts = {
+        "verbose": True,
         "outtmpl": output_template,
         "format": "bestaudio[ext=m4a][abr<=128]/bestaudio[abr<=128]/bestaudio[ext=m4a]/bestaudio/best",
         "quiet": True,
