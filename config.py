@@ -75,6 +75,10 @@ class Config:
 
     YTDLP_POT_PROVIDER_URL: str = os.getenv("YTDLP_POT_PROVIDER_URL", "")
 
+    # Local Telegram Bot API Server — standart 50 MB o'rniga 2 GB'gacha
+    # fayl yuborish/qabul qilish imkonini beradi.
+    TELEGRAM_LOCAL_API_URL: str = os.getenv("TELEGRAM_LOCAL_API_URL", "")
+
     ADMIN_IDS: list[int] = field(default_factory=lambda: [
         int(x.strip()) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip().isdigit()
     ])

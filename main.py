@@ -9,6 +9,7 @@ import logging
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
+from aiogram.client.telegram import TelegramAPIServer
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand, BotCommandScopeDefault, BotCommandScopeChat, MenuButtonDefault, MenuButtonCommands
@@ -64,10 +65,24 @@ async def main() -> None:
     config.validate()
     db_service.init_db()
 
-    bot = Bot(
-        token=config.BOT_TOKEN,
-        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-    )
+    bot_kwargs = {
+        "token": config.BOT_TOKEN,
+        "default": DefaultBotProperties(parse_mode=ParseMode.HTML),
+    }
+
+    # Agar local Bot API Server manzili berilgan bo'lsa, katta fayllar
+    # (50 MB dan ortiq, 2 GB gacha) yuborish/qabul qilish uchun shunga
+    # ulanamiz. Bo'lmasa, standart Telegram serveri ishlatiladi.
+    if config.TELEGRAM_LOCAL_API_URL:
+        local_server = TelegramAPIServer.from_base(
+            config.TELEGRAM_LOCAL_API_URL, is_local=True
+        )
+        bot_kwargs["session"] = None  # quyida to'g'ri session bilan qayta o'rnatiladi
+        from aiogram.client.session.aiohttp import AiohttpSession
+        bot_kwargs["session"] = AiohttpSession(api=local_server)
+        logger.info(f"Local Bot API Server ishlatilmoqda: {config.TELEGRAM_LOCAL_API_URL}")
+
+    bot = Bot(**bot_kwargs)
     dp = Dispatcher(storage=MemoryStorage())
 
     # Middleware'lar — har bir xabar/callback shu qatlamlardan o'tadi.
