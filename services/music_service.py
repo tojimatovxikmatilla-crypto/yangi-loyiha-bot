@@ -206,7 +206,7 @@ def download_music_by_id(video_id: str) -> MusicResult:
         "no_warnings": True,
         "noplaylist": True,
         "max_filesize": config.MAX_DOWNLOAD_SIZE_MB * 1024 * 1024,
-        "js_runtimes": {"node": {}},
+        "js_runtimes": {"deno": {}},
         "remote_components": {"ejs:github"},
         "concurrent_fragment_downloads": 16,
         "socket_timeout": 10,

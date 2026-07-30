@@ -182,7 +182,7 @@ def _youtube_js_runtime_opts() -> dict:
     challenge'larini yecha olmay, "Only images are available" xatosiga tushadi.
     """
     return {
-        "js_runtimes": {"node": {}},
+        "js_runtimes": {"deno": {}},
         "remote_components": ["ejs:github"],
     }
 
