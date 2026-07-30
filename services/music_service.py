@@ -207,7 +207,7 @@ def download_music_by_id(video_id: str) -> MusicResult:
         "http_chunk_size": 10485760,
         "external_downloader": "aria2c",
         "external_downloader_args": {
-            "aria2c": ["-x", "16", "-s", "16", "-k", "1M"],
+            "aria2c": ["-x", "16", "-s", "16", "-k", "256K", "--max-connection-per-server=16"],
         },
         **_browser_cookies_opt(),
         **_pot_provider_opt(),

@@ -282,7 +282,7 @@ def download_media(url: str) -> DownloadResult:
         "ffmpeg_location": config.FFMPEG_PATH,
         "external_downloader": "aria2c",
         "external_downloader_args": {
-            "aria2c": ["-x", "16", "-s", "16", "-k", "1M"],
+            "aria2c": ["-x", "16", "-s", "16", "-k", "256K", "--max-connection-per-server=16"],
         },
     }
 
@@ -401,7 +401,7 @@ def download_audio_from_url(url: str) -> DownloadResult:
         "ffmpeg_location": config.FFMPEG_PATH,
         "external_downloader": "aria2c",
         "external_downloader_args": {
-            "aria2c": ["-x", "16", "-s", "16", "-k", "1M"],
+            "aria2c": ["-x", "16", "-s", "16", "-k", "256K", "--max-connection-per-server=16"],
         },
     }
 
