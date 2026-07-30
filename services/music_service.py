@@ -115,7 +115,7 @@ def search_music(query: str, limit: int = 5) -> list[MusicSearchItem]:
         "skip_download": True,
         "default_search": "ytsearch",
         "js_runtimes": {"node": {}},
-        "remote_components": {"ejs:github"},
+        "remote_components": ["ejs:github"],
         **_browser_cookies_opt(),
         **_pot_provider_opt(),
     }

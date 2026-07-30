@@ -183,7 +183,7 @@ def _youtube_js_runtime_opts() -> dict:
     """
     return {
         "js_runtimes": {"node": {}},
-        "remote_components": {"ejs:github"},
+        "remote_components": ["ejs:github"],
     }
 
 
