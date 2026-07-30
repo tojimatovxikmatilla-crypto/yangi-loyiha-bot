@@ -63,8 +63,8 @@ def _pot_provider_opt() -> dict:
         return {}
     return {
         "extractor_args": {
-            "youtubepot-bgutilhttp": {"base_url": [base_url]},
-            "youtube": {"player_client": ["web_safari", "tv"]},
+            "youtubepot-bgutilhttp": {"base_url": [base_url], "disable_innertube": ["1"]},
+            "youtube": {"player_client": ["web_safari"]},
         },
     }
 
