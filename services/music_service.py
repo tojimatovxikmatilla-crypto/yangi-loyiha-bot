@@ -109,16 +109,13 @@ def search_music(query: str, limit: int = 5) -> list[MusicSearchItem]:
     ustuvor qilib qaytaradi.
     """
     ydl_opts = {
-        "verbose": True,
         "quiet": True,
         "no_warnings": True,
         "extract_flat": True,
         "skip_download": True,
         "default_search": "ytsearch",
-        "js_runtimes": {"node": {}},
-        "remote_components": ["ejs:github"],
+        "js_runtimes": {"deno": {}},
         **_browser_cookies_opt(),
-        **_pot_provider_opt(),
     }
 
     fetch_count = max(limit * 3, 10)
