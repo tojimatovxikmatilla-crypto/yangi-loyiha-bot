@@ -96,7 +96,7 @@ async def handle_link(message: Message, state: FSMContext, bot: Bot, **kwargs):
         if result.is_video:
             await message.answer_video(
                 file,
-                caption=caption,
+           caption=caption,
                 reply_markup=action_kb.as_markup(),
                 duration=result.duration or 0,
                 width=result.width or 0,
