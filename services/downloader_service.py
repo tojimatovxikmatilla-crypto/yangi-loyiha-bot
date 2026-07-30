@@ -70,6 +70,7 @@ SUPPORTED_DOMAINS = {
 
 URL_REGEX = re.compile(r"https?://[^\s]+")
 INSTAGRAM_SHORTCODE_REGEX = re.compile(r"instagram\.com/(?:reel|p|tv)/([^/?#]+)")
+INSTAGRAM_STORY_REGEX = re.compile(r"instagram\.com/stories/([^/?#]+)/(\d+)")
 YOUTUBE_ID_REGEX = re.compile(
     r"(?:youtu\.be/|youtube\.com/(?:watch\?v=|shorts/|embed/))([A-Za-z0-9_-]{6,})"
 )
@@ -225,6 +226,10 @@ def _instaloader_fallback(url: str, file_id: str) -> "DownloadResult | None":
     if not (config.INSTAGRAM_USERNAME and config.INSTAGRAM_SESSION_FILE):
         return None
 
+    story_match = INSTAGRAM_STORY_REGEX.search(url)
+    if story_match:
+        return _instaloader_story_fallback(url, file_id, story_match)
+
     match = INSTAGRAM_SHORTCODE_REGEX.search(url)
     if not match:
         return None
@@ -272,6 +277,74 @@ def _instaloader_fallback(url: str, file_id: str) -> "DownloadResult | None":
 
     except Exception:
         logger.exception(f"Instaloader fallback error for {url}")
+        return None
+
+
+def _instaloader_story_fallback(url: str, file_id: str, match) -> "DownloadResult | None":
+    """
+    Instagram Story havolasi uchun (oddiy post/reel'dan farqli formatga ega:
+    instagram.com/stories/<username>/<id>/). Instaloader'ning maxsus
+    Story/StoryItem klasslari orqali yuklanadi.
+    """
+    username, story_id = match.group(1), match.group(2)
+
+    try:
+        import instaloader
+
+        target_dir = os.path.join(config.DOWNLOAD_DIR, f"ig_story_{file_id}")
+        os.makedirs(target_dir, exist_ok=True)
+
+        L = instaloader.Instaloader(
+            dirname_pattern=target_dir,
+            save_metadata=False,
+            download_comments=False,
+            download_geotags=False,
+            post_metadata_txt_pattern="",
+            quiet=True,
+        )
+        L.load_session_from_file(config.INSTAGRAM_USERNAME, config.INSTAGRAM_SESSION_FILE)
+
+        profile = instaloader.Profile.from_username(L.context, username)
+
+        target_item = None
+        for story in L.get_stories(userids=[profile.userid]):
+            for item in story.get_items():
+                if str(item.mediaid) == story_id:
+                    target_item = item
+                    break
+            if target_item:
+                break
+
+        if not target_item:
+            logger.warning(f"Story topilmadi (muddati o'tgan yoki maxfiy bo'lishi mumkin): {url}")
+            shutil.rmtree(target_dir, ignore_errors=True)
+            return None
+
+        L.download_storyitem(target_item, target=target_dir)
+
+        media_file = None
+        is_video = True
+        for f in os.listdir(target_dir):
+            if f.lower().endswith((".mp4",)):
+                media_file = os.path.join(target_dir, f)
+                is_video = True
+                break
+            if f.lower().endswith((".jpg", ".jpeg", ".png")) and not media_file:
+                media_file = os.path.join(target_dir, f)
+                is_video = False
+
+        if not media_file:
+            shutil.rmtree(target_dir, ignore_errors=True)
+            return None
+
+        final_path = os.path.join(config.DOWNLOAD_DIR, f"{file_id}{os.path.splitext(media_file)[1]}")
+        shutil.move(media_file, final_path)
+        shutil.rmtree(target_dir, ignore_errors=True)
+
+        return DownloadResult(success=True, file_path=final_path, platform="Instagram", is_video=is_video)
+
+    except Exception:
+        logger.exception(f"Instaloader story fallback error for {url}")
         return None
 
 
