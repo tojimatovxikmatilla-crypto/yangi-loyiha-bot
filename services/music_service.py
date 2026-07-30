@@ -55,7 +55,8 @@ def _pot_provider_opt() -> dict:
     """
     bgutil-ytdlp-pot-provider orqali PO Token oladi — YouTube'ning
     "Sign in to confirm you're not a bot" bloklashini cookie'siz ham
-    yechishga yordam beradi.
+    yechishga yordam beradi. android_vr kabi POT ishlatmaydigan
+    mijozlarni chetlab, web_safari/tv'ga majburlaymiz.
     """
     base_url = getattr(config, "YTDLP_POT_PROVIDER_URL", "") or ""
     if not base_url:
@@ -63,6 +64,7 @@ def _pot_provider_opt() -> dict:
     return {
         "extractor_args": {
             "youtubepot-bgutilhttp": {"base_url": [base_url]},
+            "youtube": {"player_client": ["web_safari", "tv"]},
         },
     }
 

@@ -113,6 +113,13 @@ def _youtube_pot_provider_opts() -> dict:
     "Sign in to confirm you're not a bot" bloklashini cookie'siz ham
     yechishga yordam beradi. Provider manzili YTDLP_POT_PROVIDER_URL
     environment o'zgaruvchisidan olinadi (Railway'dagi alohida xizmat).
+
+    Shu bilan birga, yt-dlp'ga aynan qaysi YouTube "mijozlar"ni (player
+    client) ishlatishni ham qattiq belgilaymiz: android_vr kabi mijozlar
+    POT token ishlatmaydi va endi tez-tez qattiq bot-tekshiruv xatosi
+    bilan to'xtaydi — shu sabab web_safari/tv (POT bilan ishlaydigan)
+    urinishga hech qachon yetib bormaydi. Shuning uchun android_vr'ni
+    chetlab, to'g'ridan-to'g'ri POT-mos mijozlarni ishlatamiz.
     """
     base_url = getattr(config, "YTDLP_POT_PROVIDER_URL", "") or ""
     if not base_url:
@@ -120,6 +127,7 @@ def _youtube_pot_provider_opts() -> dict:
     return {
         "extractor_args": {
             "youtubepot-bgutilhttp": {"base_url": [base_url]},
+            "youtube": {"player_client": ["web_safari", "tv"]},
         },
     }
 
