@@ -11,6 +11,7 @@ from dataclasses import dataclass
 import yt_dlp
 
 from config import config
+from services.downloader_service import throttle_youtube_request
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +123,8 @@ def search_music(query: str, limit: int = 5) -> list[MusicSearchItem]:
     fetch_count = max(limit * 3, 10)
     search_query = f"ytsearch{fetch_count}:{query} audio mp3"
 
+    throttle_youtube_request()
+
     try:
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -214,6 +217,8 @@ def download_music_by_id(video_id: str) -> MusicResult:
         **_browser_cookies_opt(),
         **_pot_provider_opt(),
     }
+
+    throttle_youtube_request()
 
     try:
         try:

@@ -20,6 +20,8 @@ import pillow_heif
 pillow_heif.register_heif_opener()
 
 import subprocess as _subprocess
+import time
+import threading
 
 logging.getLogger(__name__).warning(f"yt-dlp versiyasi: {yt_dlp.version.__version__}")
 logging.getLogger(__name__).warning(
@@ -34,6 +36,24 @@ except Exception as _e:
 from config import config
 
 logger = logging.getLogger(__name__)
+
+# YouTube so'rovlari orasidagi minimal bo'shliq (soniya). Bitta server
+# IP'sidan juda tez-tez so'rov ketishi YouTube'ning "429 Too Many Requests"
+# cheklovini keltirib chiqaradi — bu barcha foydalanuvchilar uchun umumiy
+# (global) kechikish, chunki cheklov IP darajasida qo'yiladi.
+_YT_MIN_INTERVAL_SECONDS = 3.0
+_yt_last_request_lock = threading.Lock()
+_yt_last_request_time = 0.0
+
+
+def throttle_youtube_request() -> None:
+    global _yt_last_request_time
+    with _yt_last_request_lock:
+        now = time.monotonic()
+        wait = _YT_MIN_INTERVAL_SECONDS - (now - _yt_last_request_time)
+        if wait > 0:
+            time.sleep(wait)
+        _yt_last_request_time = time.monotonic()
 
 SUPPORTED_DOMAINS = {
     "instagram.com": "Instagram",
@@ -50,6 +70,66 @@ SUPPORTED_DOMAINS = {
 
 URL_REGEX = re.compile(r"https?://[^\s]+")
 INSTAGRAM_SHORTCODE_REGEX = re.compile(r"instagram\.com/(?:reel|p|tv)/([^/?#]+)")
+YOUTUBE_ID_REGEX = re.compile(
+    r"(?:youtu\.be/|youtube\.com/(?:watch\?v=|shorts/|embed/))([A-Za-z0-9_-]{6,})"
+)
+
+VIDEO_CACHE_DIR = "video_cache"
+
+
+def _extract_youtube_id(url: str) -> str | None:
+    match = YOUTUBE_ID_REGEX.search(url)
+    return match.group(1) if match else None
+
+
+def _video_cache_lookup(video_id: str) -> "DownloadResult | None":
+    """
+    Agar bu YouTube video oldin yuklab olingan bo'lsa, keshdagi nusxadan
+    (asl faylni o'chirmasdan, yangi nusxa chiqarib) qaytaradi.
+    """
+    import json
+    meta_path = os.path.join(VIDEO_CACHE_DIR, f"{video_id}.json")
+    if not os.path.exists(meta_path):
+        return None
+    try:
+        with open(meta_path, "r", encoding="utf-8") as f:
+            meta = json.load(f)
+        media_path = meta.get("media_path")
+        if not media_path or not os.path.exists(media_path):
+            return None
+        ext = os.path.splitext(media_path)[1]
+        os.makedirs(config.DOWNLOAD_DIR, exist_ok=True)
+        copy_path = os.path.join(config.DOWNLOAD_DIR, f"{uuid.uuid4()}{ext}")
+        shutil.copyfile(media_path, copy_path)
+        return DownloadResult(
+            success=True, file_path=copy_path, platform="YouTube",
+            is_video=meta.get("is_video", True), title=meta.get("title", ""),
+            duration=meta.get("duration"), width=meta.get("width"), height=meta.get("height"),
+        )
+    except Exception:
+        logger.exception(f"Video kesh o'qishda xato: {video_id}")
+        return None
+
+
+def _video_cache_store(video_id: str, result: "DownloadResult") -> None:
+    import json
+    try:
+        os.makedirs(VIDEO_CACHE_DIR, exist_ok=True)
+        ext = os.path.splitext(result.file_path)[1]
+        cached_media_path = os.path.join(VIDEO_CACHE_DIR, f"{video_id}{ext}")
+        shutil.copyfile(result.file_path, cached_media_path)
+        meta = {
+            "media_path": cached_media_path,
+            "title": result.title,
+            "duration": result.duration,
+            "width": result.width,
+            "height": result.height,
+            "is_video": result.is_video,
+        }
+        with open(os.path.join(VIDEO_CACHE_DIR, f"{video_id}.json"), "w", encoding="utf-8") as f:
+            json.dump(meta, f)
+    except Exception:
+        logger.exception(f"Video keshga yozishda xato: {video_id}")
 
 
 @dataclass
@@ -265,6 +345,13 @@ def download_media(url: str) -> DownloadResult:
                   "X yoki Pinterest havolasini yuboring.",
         )
 
+    youtube_video_id = _extract_youtube_id(url) if platform == "YouTube" else None
+    if youtube_video_id:
+        cached = _video_cache_lookup(youtube_video_id)
+        if cached:
+            logger.info(f"Video keshdan berildi: {youtube_video_id}")
+            return cached
+
     os.makedirs(config.DOWNLOAD_DIR, exist_ok=True)
     file_id = str(uuid.uuid4())
     output_template = os.path.join(config.DOWNLOAD_DIR, f"{file_id}.%(ext)s")
@@ -316,6 +403,7 @@ def download_media(url: str) -> DownloadResult:
         ydl_opts.update(_youtube_js_runtime_opts())
         ydl_opts["no_warnings"] = False
         ydl_opts["quiet"] = False
+        throttle_youtube_request()
 
     try:
         try:
@@ -349,13 +437,16 @@ def download_media(url: str) -> DownloadResult:
         # haqiqiy fayl yo'lidan tekshiramiz.
         actual_ext = os.path.splitext(file_path)[1].lstrip(".").lower()
         is_video = actual_ext in ("mp4", "mkv", "webm", "mov")
-        return DownloadResult(
+        result = DownloadResult(
             success=True, file_path=file_path, platform=platform, is_video=is_video,
             title=info.get("title", ""),
             duration=info.get("duration"),
             width=info.get("width"),
             height=info.get("height"),
         )
+        if youtube_video_id:
+            _video_cache_store(youtube_video_id, result)
+        return result
 
     except yt_dlp.utils.DownloadError as e:
         error_text = str(e)
@@ -420,6 +511,7 @@ def download_audio_from_url(url: str) -> DownloadResult:
         ydl_opts.update(_youtube_cookie_opts())
         ydl_opts.update(_youtube_pot_provider_opts())
         ydl_opts.update(_youtube_js_runtime_opts())
+        throttle_youtube_request()
 
     try:
         try:
