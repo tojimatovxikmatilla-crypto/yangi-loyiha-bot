@@ -44,6 +44,33 @@ def _write_session_file(b64_content: str, filename: str) -> str:
         return ""
 
 
+def _load_youtube_cookie_pool() -> list[str]:
+    """
+    Bir nechta YouTube cookie faylini (YOUTUBE_COOKIES, YOUTUBE_COOKIES_2,
+    YOUTUBE_COOKIES_3, ... YOUTUBE_COOKIES_20 gacha) yuklaydi. Faqat to'ldirilgan
+    (bo'sh bo'lmagan) o'zgaruvchilar hisobga olinadi — shuning uchun 9 ta yoki
+    boshqa istalgan sondagi akkaunt qo'shish/olib tashlash mumkin, kod
+    o'zgartirish shart emas.
+    """
+    paths: list[str] = []
+
+    legacy = os.getenv("YOUTUBE_COOKIES", "")
+    if legacy:
+        p = _write_cookie_file(legacy, "youtube_cookies_pool_1.txt")
+        if p:
+            paths.append(p)
+
+    for i in range(2, 21):
+        content = os.getenv(f"YOUTUBE_COOKIES_{i}", "")
+        if content:
+            p = _write_cookie_file(content, f"youtube_cookies_pool_{i}.txt")
+            if p:
+                paths.append(p)
+
+    print(f"COOKIE POOL DEBUG: jami {len(paths)} ta YouTube cookie fayli yuklandi")
+    return paths
+
+
 @dataclass
 class Config:
     BOT_TOKEN: str = os.getenv("BOT_TOKEN", "")
@@ -59,9 +86,9 @@ class Config:
     INSTAGRAM_COOKIES_FILE: str = field(default_factory=lambda: _write_cookie_file(
         os.getenv("INSTAGRAM_COOKIES", ""), "instagram_cookies.txt"
     ))
-    YOUTUBE_COOKIES_FILE: str = field(default_factory=lambda: _write_cookie_file(
-        os.getenv("YOUTUBE_COOKIES", ""), "youtube_cookies.txt"
-    ))
+
+    # --- YouTube uchun bir nechta cookie (navbat bilan almashtiriladigan) ---
+    YOUTUBE_COOKIES_FILES: list[str] = field(default_factory=_load_youtube_cookie_pool)
 
     # --- Instaloader fallback (Instagram uchun qo'shimcha usul) ---
     INSTAGRAM_USERNAME: str = os.getenv("INSTAGRAM_USERNAME", "")

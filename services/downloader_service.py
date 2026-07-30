@@ -473,36 +473,42 @@ def download_media(url: str) -> DownloadResult:
     elif platform == "Instagram":
         ydl_opts.update(_instagram_cookie_opts())
     elif platform == "YouTube":
-        ydl_opts.update(_youtube_cookie_opts())
         ydl_opts.update(_youtube_pot_provider_opts())
         ydl_opts.update(_youtube_js_runtime_opts())
         ydl_opts["no_warnings"] = False
         ydl_opts["quiet"] = False
-        throttle_youtube_request()
 
     try:
-        try:
+        if platform == "YouTube":
+            from services import youtube_cookie_pool
+            attempts = max(1, min(youtube_cookie_pool.pool_size() or 1, 9))
+            last_error = None
+            info = None
+            file_path = None
+            for _ in range(attempts):
+                cookie_file = youtube_cookie_pool.get_cookie_file()
+                attempt_opts = dict(ydl_opts)
+                if cookie_file:
+                    attempt_opts["cookiefile"] = cookie_file
+                throttle_youtube_request()
+                try:
+                    with yt_dlp.YoutubeDL(attempt_opts) as ydl:
+                        info = ydl.extract_info(url, download=True)
+                        file_path = ydl.prepare_filename(info)
+                    break
+                except yt_dlp.utils.DownloadError as e:
+                    last_error = e
+                    if cookie_file and youtube_cookie_pool.is_bot_check_error(str(e)):
+                        youtube_cookie_pool.mark_rate_limited(cookie_file)
+                        logger.warning("YouTube video uchun cookie bloklandi, keyingisiga o'tilmoqda")
+                        continue
+                    raise
+            if info is None:
+                raise last_error
+        else:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 file_path = ydl.prepare_filename(info)
-        except yt_dlp.utils.DownloadError as e:
-            if "Requested format is not available" in str(e):
-                try:
-                    debug_opts = {k: v for k, v in ydl_opts.items() if k != "format"}
-                    with yt_dlp.YoutubeDL(debug_opts) as ydl_debug:
-                        debug_info = ydl_debug.extract_info(url, download=False)
-                        formats = debug_info.get("formats", [])
-                        logger.warning(f"Mavjud formatlar: {[(f.get('format_id'), f.get('height'), f.get('filesize') or f.get('filesize_approx')) for f in formats]}")
-                except Exception as debug_e:
-                    logger.warning(f"Format debug xatosi: {debug_e}")
-            if "cookie" in str(e).lower() or "DPAPI" in str(e):
-                logger.warning(f"Cookie xatosi, cookie'siz qayta urinilmoqda: {e}")
-                fallback_opts = {k: v for k, v in ydl_opts.items() if k not in ("cookiesfrombrowser", "cookiefile")}
-                with yt_dlp.YoutubeDL(fallback_opts) as ydl:
-                    info = ydl.extract_info(url, download=True)
-                    file_path = ydl.prepare_filename(info)
-            else:
-                raise
 
         if not os.path.exists(file_path):
             return DownloadResult(success=False, error="Yuklashda xatolik yuz berdi.")
@@ -584,24 +590,39 @@ def download_audio_from_url(url: str) -> DownloadResult:
     if platform == "Instagram":
         ydl_opts.update(_instagram_cookie_opts())
     elif platform == "YouTube":
-        ydl_opts.update(_youtube_cookie_opts())
         ydl_opts.update(_youtube_pot_provider_opts())
         ydl_opts.update(_youtube_js_runtime_opts())
-        throttle_youtube_request()
 
     try:
-        try:
+        if platform == "YouTube":
+            from services import youtube_cookie_pool
+            attempts = max(1, min(youtube_cookie_pool.pool_size() or 1, 9))
+            last_error = None
+            info = None
+            file_path = None
+            for _ in range(attempts):
+                cookie_file = youtube_cookie_pool.get_cookie_file()
+                attempt_opts = dict(ydl_opts)
+                if cookie_file:
+                    attempt_opts["cookiefile"] = cookie_file
+                throttle_youtube_request()
+                try:
+                    with yt_dlp.YoutubeDL(attempt_opts) as ydl:
+                        info = ydl.extract_info(url, download=True)
+                        file_path = ydl.prepare_filename(info)
+                    break
+                except yt_dlp.utils.DownloadError as e:
+                    last_error = e
+                    if cookie_file and youtube_cookie_pool.is_bot_check_error(str(e)):
+                        youtube_cookie_pool.mark_rate_limited(cookie_file)
+                        continue
+                    raise
+            if info is None:
+                raise last_error
+        else:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 file_path = ydl.prepare_filename(info)
-        except yt_dlp.utils.DownloadError as e:
-            if "cookie" in str(e).lower() or "DPAPI" in str(e):
-                fallback_opts = {k: v for k, v in ydl_opts.items() if k not in ("cookiesfrombrowser", "cookiefile")}
-                with yt_dlp.YoutubeDL(fallback_opts) as ydl:
-                    info = ydl.extract_info(url, download=True)
-                    file_path = ydl.prepare_filename(info)
-            else:
-                raise
 
         if not os.path.exists(file_path):
             return DownloadResult(success=False, error="Audio ajratib bo'lmadi.")
