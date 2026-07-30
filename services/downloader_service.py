@@ -248,6 +248,7 @@ def _instaloader_fallback(url: str, file_id: str) -> "DownloadResult | None":
             download_geotags=False,
             post_metadata_txt_pattern="",
             quiet=True,
+            max_connection_attempts=1,
         )
         L.load_session_from_file(config.INSTAGRAM_USERNAME, config.INSTAGRAM_SESSION_FILE)
 
