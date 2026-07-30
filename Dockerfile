@@ -1,11 +1,16 @@
 FROM python:3.13-slim
 
-# Node.js 20 va ffmpeg o'rnatish
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl ffmpeg ca-certificates gnupg aria2 \
+    curl ffmpeg ca-certificates gnupg aria2 unzip \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
+
+ENV DENO_INSTALL="/usr/local"
+RUN curl -fsSL https://deno.land/install.sh | sh -s -- -y \
+    && /usr/local/bin/deno --version
+
+ENV PATH="/usr/local/bin:${PATH}"
 
 WORKDIR /app
 
