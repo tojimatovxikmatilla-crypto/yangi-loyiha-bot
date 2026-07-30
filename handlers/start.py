@@ -11,10 +11,11 @@ router = Router(name="start")
 DEFAULT_WELCOME_TEXT = (
     "🤖 <b>Universal AI Bot</b>\n\n"
     "✨ Sun'iy intellekt yordamchisi – savollarga javob, tarjima, matn yozish\n"
-    "⬇️ Instagram, TikTok, Facebook, X, Pinterest, YouTube'dan yuklab olish\n"
-    "🎵 Musiqa yuklab olish (YouTube)\n"
+    "⬇️ Instagram, TikTok, Pinterest, YouTube'dan media yuklab olish\n"
+    "🎵 Musiqa yuklab olish \n"
     "🎧 Shazam — qo'shiqni ovozidan aniqlash\n\n"
-    "Quyidagi menyudan birini tanlang 👇"
+    "🚀 Hammasi tayyor!\n"
+    "💬 Shunchaki xabaringizni yuboring yoki kerakli funksiyalardan foydalaning."
 )
 
 ABOUT_TEXT = (
