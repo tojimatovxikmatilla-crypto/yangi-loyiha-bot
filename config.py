@@ -13,10 +13,35 @@ from utils.ffmpeg_finder import find_ffmpeg
 load_dotenv()
 
 
+def _normalize_cookie_content(content: str) -> str:
+    """
+    Netscape cookie fayl formatida maydonlar TAB belgisi bilan ajratilishi
+    shart. Ba'zan nusxa ko'chirishda TAB'lar bir nechta bo'sh joyga aylanib
+    qoladi — bu funksiya shunday qatorlarni aniqlab, qayta TAB bilan
+    ajratilgan holga qaytaradi (Netscape formatida har qatorda aynan 7 ta
+    maydon bo'ladi).
+    """
+    fixed_lines = []
+    for line in content.splitlines():
+        if not line.strip() or line.startswith("#"):
+            fixed_lines.append(line)
+            continue
+        if "\t" in line:
+            fixed_lines.append(line)
+            continue
+        parts = line.split()
+        if len(parts) == 7:
+            fixed_lines.append("\t".join(parts))
+        else:
+            fixed_lines.append(line)
+    return "\n".join(fixed_lines)
+
+
 def _write_cookie_file(content: str, filename: str) -> str:
     if not content:
         print(f"COOKIE DEBUG: {filename} uchun environment o'zgaruvchisi bo'sh yoki topilmadi")
         return ""
+    content = _normalize_cookie_content(content)
     path = os.path.join(tempfile.gettempdir(), filename)
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
