@@ -75,7 +75,7 @@ async def handle_link(message: Message, state: FSMContext, bot: Bot, **kwargs):
     try:
         file = FSInputFile(result.file_path)
 
-        me = await bot.get_me()
+        me = await bot.me()
         action_kb = InlineKeyboardBuilder()
 
         if result.is_video:
@@ -130,7 +130,7 @@ async def handle_extract_audio(callback: CallbackQuery, bot: Bot):
         return
 
     try:
-        me = await bot.get_me()
+        me = await bot.me()
         audio_kb = InlineKeyboardBuilder()
         audio_kb.button(text="➕ Guruhga qo'shish", url=f"https://t.me/{me.username}?startgroup=true")
 
@@ -170,7 +170,7 @@ async def handle_music_search_from_video(callback: CallbackQuery, bot: Bot):
         return
 
     try:
-        me = await bot.get_me()
+        me = await bot.me()
         audio_kb = InlineKeyboardBuilder()
         audio_kb.button(text="➕ Guruhga qo'shish", url=f"https://t.me/{me.username}?startgroup=true")
 

@@ -75,7 +75,7 @@ async def handle_shazam_audio(message: Message, state: FSMContext, bot: Bot):
 
     cached = db_service.get_cached_music_query(search_query)
     if cached and os.path.exists(cached["file_path"]):
-        me = await bot.get_me()
+        me = await bot.me()
         add_group_kb = InlineKeyboardBuilder()
         add_group_kb.button(
             text="➕ Guruhga qo'shish",
@@ -108,7 +108,7 @@ async def handle_shazam_audio(message: Message, state: FSMContext, bot: Bot):
         try:
             audio_file = FSInputFile(music_result.file_path)
 
-            me = await bot.get_me()
+            me = await bot.me()
             add_group_kb = InlineKeyboardBuilder()
             add_group_kb.button(
                 text="➕ Guruhga qo'shish",

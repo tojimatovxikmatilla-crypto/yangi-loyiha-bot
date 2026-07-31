@@ -77,7 +77,7 @@ async def handle_music_query(message: Message, state: FSMContext, bot):
     cached = db_service.get_cached_music_query(message.text)
     if cached and os.path.exists(cached["file_path"]):
         status_msg = await message.answer("⚡ Bazadan topildi, darhol yuborilmoqda...")
-        me = await bot.get_me()
+        me = await bot.me()
         add_group_kb = InlineKeyboardBuilder()
         add_group_kb.button(
             text="➕ Guruhga qo'shish",
@@ -173,7 +173,7 @@ async def handle_music_pick(callback: CallbackQuery, state: FSMContext, bot):
     try:
         file = FSInputFile(result.file_path)
 
-        me = await bot.get_me()
+        me = await bot.me()
         add_group_kb = InlineKeyboardBuilder()
         add_group_kb.button(
             text="➕ Guruhga qo'shish",
