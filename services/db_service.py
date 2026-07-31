@@ -41,6 +41,8 @@ def _connect():
 
 def init_db() -> None:
     with _connect() as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS users (
