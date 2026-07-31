@@ -175,7 +175,6 @@ def download_music_by_id(video_id: str) -> MusicResult:
         cookie_file = youtube_cookie_pool.get_cookie_file()
 
         ydl_opts = {
-            "verbose": True,
             "outtmpl": output_template,
             "format": "bestaudio[ext=m4a][abr<=128]/bestaudio[abr<=128]/bestaudio[ext=m4a]/bestaudio/best",
             "quiet": True,
