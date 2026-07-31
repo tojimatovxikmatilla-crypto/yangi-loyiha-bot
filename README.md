@@ -98,3 +98,4 @@ Screenshotlaringizda ko'rilgan qo'shimcha g'oyalar: Profile Analyzer, Best
 Posting Time, Logo Enhancer, PDF↔Word. Bularning har birini yuqoridagi
 "Yangi funksiya qo'shish" andozasi bo'yicha alohida modul sifatida qo'shish
 mumkin.
+
