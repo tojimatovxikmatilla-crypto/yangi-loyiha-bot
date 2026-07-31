@@ -52,6 +52,10 @@ def init_db() -> None:
             )
             """
         )
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN last_seen TEXT")
+        except sqlite3.OperationalError:
+            pass  # ustun allaqachon mavjud
         conn.execute(
             "CREATE TABLE IF NOT EXISTS bot_settings (key TEXT PRIMARY KEY, value TEXT)"
         )
@@ -129,8 +133,15 @@ def init_db() -> None:
 def add_user(user_id: int, username: str | None = None) -> None:
     with _connect() as conn:
         conn.execute(
-            "INSERT OR IGNORE INTO users (user_id, username) VALUES (?, ?)",
+            "INSERT OR IGNORE INTO users (user_id, username, last_seen) VALUES (?, ?, CURRENT_TIMESTAMP)",
             (user_id, username),
+        )
+        # Foydalanuvchi oldin ham mavjud bo'lsa ham, har safar xabar yozganda
+        # so'nggi faollik vaqtini yangilaymiz — statistikada faol/passiv
+        # ajratish shu ma'lumotga asoslanadi.
+        conn.execute(
+            "UPDATE users SET last_seen = CURRENT_TIMESTAMP, username = COALESCE(?, username) WHERE user_id = ?",
+            (username, user_id),
         )
 
 
@@ -171,6 +182,36 @@ def is_banned(user_id: int) -> bool:
 def get_banned_count() -> int:
     with _connect() as conn:
         return conn.execute("SELECT COUNT(*) FROM users WHERE banned = 1").fetchone()[0]
+
+
+def get_user_activity_counts(active_days: int = 3, average_days: int = 14) -> dict:
+    """
+    Foydalanuvchilarni oxirgi faollik vaqtiga (last_seen) qarab uch guruhga
+    ajratadi:
+    - faol: so'nggi `active_days` kun ichida yozgan
+    - o'rtacha: `active_days`–`average_days` kun oralig'ida yozgan
+    - passiv: `average_days` kundan ortiq yozmagan (yoki umuman ma'lumot yo'q)
+    """
+    now = datetime.now()
+    active, average, passive = 0, 0, 0
+    with _connect() as conn:
+        rows = conn.execute("SELECT last_seen FROM users").fetchall()
+    for (last_seen,) in rows:
+        if not last_seen:
+            passive += 1
+            continue
+        try:
+            delta_days = (now - datetime.fromisoformat(last_seen)).total_seconds() / 86400
+        except ValueError:
+            passive += 1
+            continue
+        if delta_days <= active_days:
+            active += 1
+        elif delta_days <= average_days:
+            average += 1
+        else:
+            passive += 1
+    return {"active": active, "average": average, "passive": passive}
 
 
 # ---------- Premium ----------
