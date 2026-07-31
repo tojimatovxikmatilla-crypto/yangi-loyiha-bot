@@ -22,11 +22,11 @@ def _convert_to_wav(input_path: str) -> str | None:
         result = subprocess.run(
             [
                 _cfg.FFMPEG_PATH, "-y", "-i", input_path,
-                "-ar", "44100", "-ac", "1",
+                "-ar", "44100", "-ac", "1", "-t", "60",
                 output_path,
             ],
             capture_output=True,
-            timeout=30,
+            timeout=45,
         )
         if result.returncode != 0 or not os.path.exists(output_path):
             logger.warning(f"ffmpeg convert failed: {result.stderr.decode(errors='ignore')}")

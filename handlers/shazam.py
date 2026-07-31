@@ -35,7 +35,7 @@ async def open_shazam_reply(message: Message, state: FSMContext, bot: Bot):
     await message.answer(PROMPT_TEXT, parse_mode="HTML")
 
 
-@router.message(StateFilter(None), F.voice | F.audio)
+@router.message(StateFilter(None), F.voice | F.audio | F.video | F.video_note)
 async def handle_shazam_audio(message: Message, state: FSMContext, bot: Bot):
     if not db_service.get_feature_enabled("shazam"):
         await message.answer(DISABLED_TEXT)
@@ -43,10 +43,12 @@ async def handle_shazam_audio(message: Message, state: FSMContext, bot: Bot):
         return
 
     os.makedirs(config.DOWNLOAD_DIR, exist_ok=True)
-    audio_obj = message.voice or message.audio
-    file_path = os.path.join(config.DOWNLOAD_DIR, f"{uuid.uuid4()}.ogg")
+    media_obj = message.voice or message.audio or message.video or message.video_note
+    is_video_input = bool(message.video or message.video_note)
+    file_ext = ".mp4" if is_video_input else ".ogg"
+    file_path = os.path.join(config.DOWNLOAD_DIR, f"{uuid.uuid4()}{file_ext}")
 
-    tg_file = await bot.get_file(audio_obj.file_id)
+    tg_file = await bot.get_file(media_obj.file_id)
     await bot.download_file(tg_file.file_path, destination=file_path)
 
     status = await message.answer("🎧 Tinglanmoqda, qo'shiq aniqlanmoqda...")
