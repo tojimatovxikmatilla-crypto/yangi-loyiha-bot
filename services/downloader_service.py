@@ -478,7 +478,7 @@ def download_media(url: str) -> DownloadResult:
     try:
         if platform == "YouTube":
             from services import youtube_cookie_pool
-            attempts = max(1, min(youtube_cookie_pool.pool_size() or 1, 9))
+            attempts = max(1, youtube_cookie_pool.pool_size() or 1)
             last_error = None
             info = None
             file_path = None
@@ -592,7 +592,7 @@ def download_audio_from_url(url: str) -> DownloadResult:
     try:
         if platform == "YouTube":
             from services import youtube_cookie_pool
-            attempts = max(1, min(youtube_cookie_pool.pool_size() or 1, 9))
+            attempts = max(1, youtube_cookie_pool.pool_size() or 1)
             last_error = None
             info = None
             file_path = None

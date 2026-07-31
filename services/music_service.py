@@ -83,7 +83,7 @@ def search_music(query: str, limit: int = 5) -> list[MusicSearchItem]:
     fetch_count = max(limit * 3, 10)
     search_query = f"ytsearch{fetch_count}:{query} audio mp3"
 
-    attempts = max(1, min(youtube_cookie_pool.pool_size() or 1, 9))
+    attempts = max(1, youtube_cookie_pool.pool_size() or 1)
     last_error: Exception | None = None
 
     for _ in range(attempts):
@@ -167,7 +167,7 @@ def download_music_by_id(video_id: str) -> MusicResult:
     file_id = video_id
     output_template = os.path.join(CACHE_DIR, f"{file_id}.%(ext)s")
 
-    attempts = max(1, min(youtube_cookie_pool.pool_size() or 1, 9))
+    attempts = max(1, youtube_cookie_pool.pool_size() or 1)
     last_error: Exception | None = None
     last_error_text = ""
 
