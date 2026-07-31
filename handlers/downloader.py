@@ -11,6 +11,7 @@ from services.shazam_service import recognize_music
 from services import db_service
 from aiogram.filters import StateFilter
 from utils.keyboards import back_to_menu_kb, BTN_DOWNLOADER
+from handlers.music import _search_with_auto_retry
 
 router = Router(name="downloader")
 
@@ -30,6 +31,36 @@ def _append_promo_links(kb: InlineKeyboardBuilder, category: str) -> None:
     """Admin tomonidan shu turdagi xabarlar uchun qo'shilgan faol silkalarni tugma sifatida qo'shadi."""
     for link in db_service.get_active_promo_links(category):
         kb.button(text=link["button_text"], url=link["url"])
+
+
+async def _download_media_with_auto_retry(status_msg: Message, url: str, attempts: int = 3, delay: float = 4.0):
+    """
+    Video/rasm yuklash ko'pincha vaqtinchalik sabablarga (cookie/bot-tekshiruv,
+    tarmoq) ko'ra muvaffaqiyatsiz bo'lishi mumkin. Foydalanuvchiga darhol xato
+    ko'rsatish o'rniga, bot avtomatik ravishda bir necha marta qayta urinadi.
+    """
+    result = None
+    for attempt in range(1, attempts + 1):
+        result = await asyncio.to_thread(download_media, url)
+        if result.success:
+            return result
+        if attempt < attempts:
+            await status_msg.edit_text(f"🔁 Avtomatik qayta urinilmoqda ({attempt}/{attempts - 1})...")
+            await asyncio.sleep(delay)
+    return result
+
+
+async def _download_audio_with_auto_retry(status_msg: Message, url: str, attempts: int = 3, delay: float = 4.0):
+    """download_audio_from_url uchun xuddi shu avtomatik qayta urinish mantiqi."""
+    result = None
+    for attempt in range(1, attempts + 1):
+        result = await asyncio.to_thread(download_audio_from_url, url)
+        if result.success:
+            return result
+        if attempt < attempts:
+            await status_msg.edit_text(f"🔁 Avtomatik qayta urinilmoqda ({attempt}/{attempts - 1})...")
+            await asyncio.sleep(delay)
+    return result
 
 
 @router.message(F.text == BTN_DOWNLOADER)
@@ -67,10 +98,10 @@ async def handle_link(message: Message, state: FSMContext, bot: Bot, **kwargs):
 
     status_msg = await message.answer(f"⏳ {platform} havolasi qabul qilindi, yuklanmoqda...")
 
-    result = await asyncio.to_thread(download_media, url)
+    result = await _download_media_with_auto_retry(status_msg, url)
 
     if not result.success:
-        await status_msg.edit_text(f"❌ {result.error}")
+        await status_msg.edit_text(f"❌ {result.error}\n\nBir necha marta avtomatik urinib ko'rdik.")
         return
 
     try:
@@ -127,10 +158,10 @@ async def handle_extract_audio(callback: CallbackQuery, bot: Bot):
     await callback.answer("⏳ Qo'shiq ajratilmoqda...")
     status_msg = await callback.message.answer("⏳ Qo'shiq ajratilmoqda...")
 
-    result = await asyncio.to_thread(download_audio_from_url, url)
+    result = await _download_audio_with_auto_retry(status_msg, url)
 
     if not result.success:
-        await status_msg.edit_text(f"❌ {result.error}")
+        await status_msg.edit_text(f"❌ {result.error}\n\nBir necha marta avtomatik urinib ko'rdik.")
         return
 
     try:
@@ -163,7 +194,7 @@ async def handle_music_search_from_video(callback: CallbackQuery, bot: Bot):
     await callback.answer("⏳ Videodagi qo'shiq aniqlanmoqda...")
     status_msg = await callback.message.answer("🎧 Videodagi qo'shiq aniqlanmoqda...")
 
-    extracted = await asyncio.to_thread(download_audio_from_url, url)
+    extracted = await _download_audio_with_auto_retry(status_msg, url)
 
     search_query = fallback_title or ""
     if extracted.success:
@@ -177,10 +208,10 @@ async def handle_music_search_from_video(callback: CallbackQuery, bot: Bot):
         return
 
     await status_msg.edit_text("🔎 Qo'shiq qidirilmoqda...")
-    search_results = await asyncio.to_thread(search_music, search_query, 5)
+    search_results = await _search_with_auto_retry(status_msg, search_query, 5)
 
     if not search_results:
-        await status_msg.edit_text("❌ Bu video bo'yicha qo'shiq topilmadi.")
+        await status_msg.edit_text("❌ Bu video bo'yicha qo'shiq bir necha marta urinib ko'rsak ham topilmadi.")
         return
 
     result = await asyncio.to_thread(download_music_with_fallback, search_results)

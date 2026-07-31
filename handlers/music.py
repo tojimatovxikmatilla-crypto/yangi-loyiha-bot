@@ -1,12 +1,13 @@
 import asyncio
 import os
+import uuid as _uuid
 
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, FSInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import StateFilter
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import InlineKeyboardButton
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from services.music_service import search_music, download_music_by_id, cleanup_file, _format_duration
 from services import db_service
@@ -26,6 +27,55 @@ DISABLED_TEXT = "🔧 Bu funksiya admin tomonidan vaqtincha o'chirilgan."
 PAGE_SIZE = 10
 MAX_RESULTS = 30
 NUMBER_EMOJIS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
+
+# "Qayta urinish" tugmasi bosilganda qaysi qidiruv so'zi ekanligini eslab
+# qolish uchun (callback_data uzunligi cheklangani sabab, to'liq matn emas,
+# qisqa ID saqlanadi).
+_pending_queries: dict[str, str] = {}
+
+
+def _retry_search_kb(query: str) -> InlineKeyboardMarkup:
+    short_id = _uuid.uuid4().hex[:12]
+    _pending_queries[short_id] = query
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🔄 Qayta urinish", callback_data=f"music_retry_search:{short_id}")
+    return kb.as_markup()
+
+
+def _retry_pick_kb(video_id: str) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🔄 Qayta urinish", callback_data=f"music_pick:{video_id}")
+    return kb.as_markup()
+
+
+async def _search_with_auto_retry(status_msg: Message, query: str, limit: int, attempts: int = 3, delay: float = 4.0):
+    """
+    Qidiruv ko'pincha vaqtinchalik sabablarga (cookie/bot-tekshiruv) ko'ra
+    bo'sh natija qaytarishi mumkin. Foydalanuvchiga darhol "topilmadi" deyish
+    o'rniga, bot avtomatik ravishda bir necha marta (orada qisqa kutish bilan)
+    qayta urinadi.
+    """
+    for attempt in range(1, attempts + 1):
+        results = await asyncio.to_thread(search_music, query, limit)
+        if results:
+            return results
+        if attempt < attempts:
+            await status_msg.edit_text(f"🔁 Avtomatik qayta urinilmoqda ({attempt}/{attempts - 1})...")
+            await asyncio.sleep(delay)
+    return []
+
+
+async def _download_with_auto_retry(status_msg: Message, video_id: str, attempts: int = 3, delay: float = 4.0):
+    """download_music_by_id uchun xuddi shu avtomatik qayta urinish mantiqi."""
+    result = None
+    for attempt in range(1, attempts + 1):
+        result = await asyncio.to_thread(download_music_by_id, video_id)
+        if result.success:
+            return result
+        if attempt < attempts:
+            await status_msg.edit_text(f"🔁 Avtomatik qayta urinilmoqda ({attempt}/{attempts - 1})...")
+            await asyncio.sleep(delay)
+    return result
 
 
 def _build_page_text_and_kb(query: str, results: list, page: int):
@@ -97,10 +147,14 @@ async def handle_music_query(message: Message, state: FSMContext, bot):
 
     status_msg = await message.answer("🔎 Qidirilmoqda...")
 
-    results = await asyncio.to_thread(search_music, message.text, PAGE_SIZE)
+    results = await _search_with_auto_retry(status_msg, message.text, PAGE_SIZE)
 
     if not results:
-        await status_msg.edit_text("❌ Hech narsa topilmadi. Boshqa nom bilan urinib ko'ring.")
+        await status_msg.edit_text(
+            "❌ Hech narsa topilmadi yoki hozircha yuklab bo'lmadi.\n\n"
+            "Bir necha marta avtomatik urinib ko'rdik — pastdagi tugma orqali yana urinib ko'ring:",
+            reply_markup=_retry_search_kb(message.text),
+        )
         return
 
     results_data = [
@@ -116,6 +170,43 @@ async def handle_music_query(message: Message, state: FSMContext, bot):
     await state.update_data(query=message.text, results=results_data)
 
     text, kb = _build_page_text_and_kb(message.text, results_data, page=0)
+    await status_msg.edit_text(text, reply_markup=kb, parse_mode="HTML")
+
+
+@router.callback_query(F.data.startswith("music_retry_search:"))
+async def handle_music_retry_search(callback: CallbackQuery, state: FSMContext):
+    short_id = callback.data.split(":", 1)[1]
+    query = _pending_queries.get(short_id)
+
+    if not query:
+        await callback.answer("⚠️ Muddati o'tgan, qo'shiq nomini qaytadan yozing.", show_alert=True)
+        return
+
+    await callback.answer("⏳ Qayta urinilmoqda...")
+    status_msg = await callback.message.answer("🔎 Qayta qidirilmoqda...")
+
+    results = await _search_with_auto_retry(status_msg, query, PAGE_SIZE)
+
+    if not results:
+        await status_msg.edit_text(
+            "❌ Hali ham topilmadi. Birozdan so'ng qayta urinib ko'ring:",
+            reply_markup=_retry_search_kb(query),
+        )
+        return
+
+    results_data = [
+        {
+            "video_id": r.video_id,
+            "title": r.title,
+            "duration": r.duration,
+            "uploader": r.uploader,
+        }
+        for r in results
+    ]
+
+    await state.update_data(query=query, results=results_data)
+
+    text, kb = _build_page_text_and_kb(query, results_data, page=0)
     await status_msg.edit_text(text, reply_markup=kb, parse_mode="HTML")
 
 
@@ -164,10 +255,13 @@ async def handle_music_pick(callback: CallbackQuery, state: FSMContext, bot):
     await callback.answer()
     status_msg = await callback.message.answer("⏳ Yuklanmoqda...")
 
-    result = await asyncio.to_thread(download_music_by_id, video_id)
+    result = await _download_with_auto_retry(status_msg, video_id)
 
     if not result.success:
-        await status_msg.edit_text(f"❌ {result.error}")
+        await status_msg.edit_text(
+            f"❌ {result.error}\n\nBir necha marta avtomatik urinib ko'rdik — pastdagi tugma orqali yana urinib ko'ring:",
+            reply_markup=_retry_pick_kb(video_id),
+        )
         return
 
     try:

@@ -14,6 +14,7 @@ from services import db_service
 from utils.keyboards import BTN_SHAZAM
 from utils.states import ShazamStates
 from config import config
+from handlers.music import _retry_search_kb, _retry_pick_kb, _search_with_auto_retry
 
 router = Router(name="shazam")
 
@@ -96,16 +97,24 @@ async def handle_shazam_audio(message: Message, state: FSMContext, bot: Bot):
         db_service.increment_counter("music_served_from_cache")
         return
 
-    search_results = await asyncio.to_thread(search_music, search_query, 5)
+    search_results = await _search_with_auto_retry(status, search_query, 5)
 
     if not search_results:
-        await status.edit_text(f"⚠️ Qo'shiq aniqlandi, lekin YouTube'dan topilmadi.")
+        await status.edit_text(
+            f"⚠️ Qo'shiq aniqlandi ({result.title} — {result.artist}), lekin bir necha marta avtomatik "
+            "urinib ko'rsak ham YouTube'dan topilmadi.\n\nPastdagi tugma orqali yana urinib ko'ring:",
+            reply_markup=_retry_search_kb(search_query),
+        )
         return
 
     music_result = await asyncio.to_thread(download_music_with_fallback, search_results)
 
     if not music_result.success:
-        await status.edit_text(f"⚠️ Qo'shiq aniqlandi, lekin yuklab bo'lmadi: {music_result.error}")
+        await status.edit_text(
+            f"⚠️ Qo'shiq aniqlandi, lekin yuklab bo'lmadi: {music_result.error}\n\n"
+            "Pastdagi tugma orqali qayta urinib ko'ring:",
+            reply_markup=_retry_pick_kb(search_results[0].video_id),
+        )
     else:
         try:
             audio_file = FSInputFile(music_result.file_path)
