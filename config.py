@@ -39,14 +39,14 @@ def _normalize_cookie_content(content: str) -> str:
 
 def _write_cookie_file(content: str, filename: str) -> str:
     if not content:
-        print(f"COOKIE DEBUG: {filename} uchun environment o'zgaruvchisi bo'sh yoki topilmadi")
+        print(f"COOKIE DEBUG: {filename} uchun environment o'zgaruvchisi bo'sh yoki topilmadi", flush=True)
         return ""
     content = _normalize_cookie_content(content)
     path = os.path.join(tempfile.gettempdir(), filename)
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
     first_line = content.strip().splitlines()[0] if content.strip() else "(bo'sh)"
-    print(f"COOKIE DEBUG: {filename} yaratildi, {len(content)} belgi, yo'l={path}, birinchi qator: {first_line!r}")
+    print(f"COOKIE DEBUG: {filename} yaratildi, {len(content)} belgi, yo'l={path}, birinchi qator: {first_line!r}", flush=True)
     return path
 
 
@@ -55,17 +55,17 @@ def _write_session_file(b64_content: str, filename: str) -> str:
     Instaloader sessiya faylini (base64 ko'rinishida saqlangan) qayta tiklaydi.
     """
     if not b64_content:
-        print("SESSION DEBUG: INSTAGRAM_SESSION_B64 bo'sh yoki topilmadi")
+        print("SESSION DEBUG: INSTAGRAM_SESSION_B64 bo'sh yoki topilmadi", flush=True)
         return ""
     path = os.path.join(tempfile.gettempdir(), filename)
     try:
         raw = base64.b64decode(b64_content)
         with open(path, "wb") as f:
             f.write(raw)
-        print(f"SESSION DEBUG: fayl yaratildi, {len(raw)} bayt, yo'l={path}")
+        print(f"SESSION DEBUG: fayl yaratildi, {len(raw)} bayt, yo'l={path}", flush=True)
         return path
     except Exception as e:
-        print(f"SESSION DEBUG: base64 decode xatosi: {e!r}")
+        print(f"SESSION DEBUG: base64 decode xatosi: {e!r}", flush=True)
         return ""
 
 
@@ -92,7 +92,7 @@ def _load_youtube_cookie_pool() -> list[str]:
             if p:
                 paths.append(p)
 
-    print(f"COOKIE POOL DEBUG: jami {len(paths)} ta YouTube cookie fayli yuklandi")
+    print(f"COOKIE POOL DEBUG: jami {len(paths)} ta YouTube cookie fayli yuklandi", flush=True)
     return paths
 
 
