@@ -7,6 +7,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from services.downloader_service import extract_url, detect_platform, download_media, download_audio_from_url, cleanup_file
 from services.music_service import search_music, download_music_by_id, download_music_with_fallback, cleanup_file as cleanup_music_file
+from services.shazam_service import recognize_music
 from services import db_service
 from aiogram.filters import StateFilter
 from utils.keyboards import back_to_menu_kb, BTN_DOWNLOADER
@@ -148,16 +149,34 @@ async def handle_extract_audio(callback: CallbackQuery, bot: Bot):
 @router.callback_query(F.data.startswith("dl_music_search:"))
 async def handle_music_search_from_video(callback: CallbackQuery, bot: Bot):
     short_id = callback.data.split(":", 1)[1]
-    title = _pending_titles.get(short_id)
+    url = _pending_audio_urls.get(short_id)
+    fallback_title = _pending_titles.get(short_id)
 
-    if not title:
+    if not url:
         await callback.answer("⚠️ Ma'lumot eskirgan, videoni qayta yuboring.", show_alert=True)
         return
 
-    await callback.answer("⏳ Qo'shiq qidirilmoqda...")
-    status_msg = await callback.message.answer("🔎 Qo'shiq qidirilmoqda...")
+    await callback.answer("⏳ Videodagi qo'shiq aniqlanmoqda...")
+    status_msg = await callback.message.answer("🎧 Videodagi qo'shiq aniqlanmoqda...")
 
-    search_results = await asyncio.to_thread(search_music, title, 5)
+    # Video izohi (caption) o'rniga, videoning haqiqiy ovozini Shazam orqali
+    # tanib olamiz — bu aniq qo'shiq nomini topishda ancha ishonchli, chunki
+    # izoh matni ko'pincha qo'shiq nomi bilan mos kelmaydi.
+    extracted = await asyncio.to_thread(download_audio_from_url, url)
+
+    search_query = fallback_title or ""
+    if extracted.success:
+        recognized = await recognize_music(extracted.file_path)
+        cleanup_file(extracted.file_path)
+        if recognized.success:
+            search_query = f"{recognized.title} {recognized.artist}".strip()
+
+    if not search_query:
+        await status_msg.edit_text("❌ Bu video bo'yicha qo'shiq aniqlanmadi.")
+        return
+
+    await status_msg.edit_text("🔎 Qo'shiq qidirilmoqda...")
+    search_results = await asyncio.to_thread(search_music, search_query, 5)
 
     if not search_results:
         await status_msg.edit_text("❌ Bu video bo'yicha qo'shiq topilmadi.")
