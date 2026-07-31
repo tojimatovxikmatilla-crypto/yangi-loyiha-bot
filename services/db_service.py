@@ -17,7 +17,9 @@ from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
-DB_PATH = "bot_data.db"
+import os
+
+DB_PATH = os.path.join(os.getenv("DATA_DIR", "."), "bot_data.db")
 
 ALL_FEATURES = {
     "downloader": "⬇️ Universal Downloader",
