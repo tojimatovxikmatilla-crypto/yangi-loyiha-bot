@@ -14,8 +14,6 @@ from utils.keyboards import back_to_menu_kb, BTN_DOWNLOADER
 
 router = Router(name="downloader")
 
-# Callback data uzunligi cheklangani uchun (64 belgi), to'liq havolani
-# saqlash o'rniga qisqa ID orqali eslab qolamiz.
 _pending_audio_urls: dict[str, str] = {}
 _pending_titles: dict[str, str] = {}
 
@@ -26,6 +24,12 @@ PROMPT_TEXT = (
 )
 
 DISABLED_TEXT = "🔧 Bu funksiya admin tomonidan vaqtincha o'chirilgan."
+
+
+def _append_promo_links(kb: InlineKeyboardBuilder, category: str) -> None:
+    """Admin tomonidan shu turdagi xabarlar uchun qo'shilgan faol silkalarni tugma sifatida qo'shadi."""
+    for link in db_service.get_active_promo_links(category):
+        kb.button(text=link["button_text"], url=link["url"])
 
 
 @router.message(F.text == BTN_DOWNLOADER)
@@ -49,15 +53,13 @@ async def open_downloader(callback: CallbackQuery, state: FSMContext):
 
 @router.message(F.text.regexp(r"https?://").as_("_match"))
 async def handle_link(message: Message, state: FSMContext, bot: Bot, **kwargs):
-    # Bu handler har qanday havola yuborilganda ishlaydi (menyudan qat'i nazar) —
-    # foydalanuvchi uchun eng qulay yo'l: havolani shunchaki tashlash kifoya.
     url = extract_url(message.text)
     if not url:
         return
 
     platform = detect_platform(url)
     if not platform:
-        return  # boshqa handlerlar (masalan AI) ushlab olishi mumkin
+        return
 
     if not db_service.get_feature_enabled("downloader"):
         await message.answer(DISABLED_TEXT)
@@ -65,8 +67,6 @@ async def handle_link(message: Message, state: FSMContext, bot: Bot, **kwargs):
 
     status_msg = await message.answer(f"⏳ {platform} havolasi qabul qilindi, yuklanmoqda...")
 
-    # Bloklanadigan (sinxron) yuklashni alohida thread'da bajaramiz — shunda
-    # yuklash davomida bot boshqa foydalanuvchilarga ham javob berishda davom etadi.
     result = await asyncio.to_thread(download_media, url)
 
     if not result.success:
@@ -90,6 +90,9 @@ async def handle_link(message: Message, state: FSMContext, bot: Bot, **kwargs):
             action_kb.button(text="✂️ Musiqani ajratib olish", callback_data=f"dl_audio:{short_id}")
 
         action_kb.button(text="➕ Guruhga qo'shish", url=f"https://t.me/{me.username}?startgroup=true")
+
+        _append_promo_links(action_kb, "video" if result.is_video else "photo")
+
         action_kb.adjust(1)
 
         caption = f"📥 @{me.username} orqali yuklab olindi"
@@ -97,7 +100,7 @@ async def handle_link(message: Message, state: FSMContext, bot: Bot, **kwargs):
         if result.is_video:
             await message.answer_video(
                 file,
-           caption=caption,
+                caption=caption,
                 reply_markup=action_kb.as_markup(),
                 duration=result.duration or 0,
                 width=result.width or 0,
@@ -134,6 +137,7 @@ async def handle_extract_audio(callback: CallbackQuery, bot: Bot):
         me = await bot.me()
         audio_kb = InlineKeyboardBuilder()
         audio_kb.button(text="➕ Guruhga qo'shish", url=f"https://t.me/{me.username}?startgroup=true")
+        _append_promo_links(audio_kb, "music")
 
         await callback.message.answer_audio(
             FSInputFile(result.file_path),
@@ -159,9 +163,6 @@ async def handle_music_search_from_video(callback: CallbackQuery, bot: Bot):
     await callback.answer("⏳ Videodagi qo'shiq aniqlanmoqda...")
     status_msg = await callback.message.answer("🎧 Videodagi qo'shiq aniqlanmoqda...")
 
-    # Video izohi (caption) o'rniga, videoning haqiqiy ovozini Shazam orqali
-    # tanib olamiz — bu aniq qo'shiq nomini topishda ancha ishonchli, chunki
-    # izoh matni ko'pincha qo'shiq nomi bilan mos kelmaydi.
     extracted = await asyncio.to_thread(download_audio_from_url, url)
 
     search_query = fallback_title or ""
@@ -192,6 +193,7 @@ async def handle_music_search_from_video(callback: CallbackQuery, bot: Bot):
         me = await bot.me()
         audio_kb = InlineKeyboardBuilder()
         audio_kb.button(text="➕ Guruhga qo'shish", url=f"https://t.me/{me.username}?startgroup=true")
+        _append_promo_links(audio_kb, "music")
 
         await callback.message.answer_audio(
             FSInputFile(result.file_path),

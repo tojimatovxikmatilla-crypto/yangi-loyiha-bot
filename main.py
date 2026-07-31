@@ -113,6 +113,9 @@ async def main() -> None:
 
     await setup_bot_commands(bot)
 
+    from utils.promo_scheduler import promo_link_expiry_watcher
+    asyncio.create_task(promo_link_expiry_watcher(bot))
+
     logger.info("Bot ishga tushmoqda...")
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)

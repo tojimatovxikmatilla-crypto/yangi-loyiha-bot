@@ -1,19 +1,5 @@
 """
 To'liq admin panel.
-
-/admin buyrug'i pastda doimiy ko'rinadigan 6 ta bo'lim tugmasini chiqaradi.
-Har bir bo'lim bosilganda, o'sha bo'limning FUNKSIYALARI pastdagi tugmalar
-bilan almashtiriladi (inline tugmalar ishlatilmaydi — hech qanday funksiya
-alohida xabar ostida tugma sifatida chiqmaydi). Har doim "⬅️ Orqaga" tugmasi
-orqali asosiy 6 ta bo'limga qaytish mumkin.
-
-Bo'limlar:
-1. 📊 Asosiy boshqaruv — foydalanuvchilar, statistika, broadcast, ban/unban, sozlamalar
-2. 🤖 Bot funksiyalari — har bir funksiyani alohida yoqish/o'chirish, xush kelibsiz matnini tahrirlash
-3. 💎 Premium — premium berish/bekor qilish, promo kodlar, obunalar ro'yxati
-4. 🛡 Xavfsizlik — spam nazorati holati, shikoyatlar, loglar, adminlar ro'yxati
-5. 📁 Kontent — fayllar/media statistikasi, API holati, server holati
-6. 🔧 Texnik — botni qayta ishga tushirish, zaxira/tiklash, ping
 """
 import asyncio
 import logging
@@ -23,16 +9,17 @@ import random
 import string
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from aiogram import Router, F, Bot
 from aiogram.filters import Command, StateFilter, BaseFilter
 from aiogram.types import Message, FSInputFile, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.fsm.context import FSMContext
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest
 
 from services import db_service
-from utils.states import AdminStates
+from utils.states import AdminStates, PromoLinkStates
 from config import config
 
 logger = logging.getLogger(__name__)
@@ -40,17 +27,16 @@ router = Router(name="admin")
 
 START_TIME = datetime.now()
 
-# ---------- Bo'lim nomlari (pastdagi doimiy tugmalar matni) ----------
 CAT_MAIN = "📊 Asosiy boshqaruv"
 CAT_FUNCTIONS = "🤖 Bot funksiyalari"
 CAT_PREMIUM = "💎 Premium"
 CAT_SECURITY = "🛡 Xavfsizlik"
 CAT_CONTENT = "📁 Kontent"
 CAT_TECH = "🔧 Texnik"
+CAT_LINKS = "🔗 Silkalar"
 
 BTN_BACK = "⬅️ Orqaga"
 
-# --- Asosiy boshqaruv tugmalari ---
 BTN_USERS = "👤 Foydalanuvchilar"
 BTN_STATS = "📈 Statistika"
 BTN_BROADCAST = "📢 Xabar yuborish"
@@ -58,38 +44,53 @@ BTN_BAN = "🚫 Ban"
 BTN_UNBAN = "✅ Unban"
 BTN_SETTINGS = "⚙️ Sozlamalar"
 
-# --- Sozlamalar ichidagi tugmalar ---
 BTN_TOGGLE_MAINT = "🛠 Texnik ishlar rejimini almashtirish"
 BTN_EDIT_WELCOME = "📝 Xush kelibsiz matnini tahrirlash"
 
-# --- Bot funksiyalari tugmalari ---
 BTN_ADD_FEATURE_INFO = "➕ Funksiya qo'shish"
 BTN_TOGGLE_FEATURES = "🔁 Funksiyalarni yoqish/o'chirish"
 
-# --- Premium tugmalari ---
 BTN_GRANT_PREMIUM = "💎 Premium berish"
 BTN_REVOKE_PREMIUM = "❌ Premiumni bekor qilish"
 BTN_CREATE_PROMO = "🎁 Promo kod yaratish"
 BTN_SUBSCRIPTIONS = "💳 Obunalar ro'yxati"
 
-# --- Xavfsizlik tugmalari ---
 BTN_SPAM_INFO = "🚫 Spam nazorati"
 BTN_COMPLAINTS = "🚨 Shikoyatlar"
 BTN_LOGS = "📋 Loglar"
 BTN_ADMINS = "🔑 Adminlar"
 
-# --- Kontent tugmalari ---
 BTN_FILES = "📁 Fayllar"
 BTN_MEDIA = "🖼 Media statistikasi"
 BTN_API_STATUS = "🔗 API holati"
 BTN_SERVER_STATUS = "🌐 Server holati"
 
-# --- Texnik tugmalari ---
 BTN_RESTART = "♻️ Botni qayta ishga tushirish"
 BTN_RESTART_CONFIRM = "⚠️ Ha, qayta ishga tushirish"
 BTN_BACKUP = "📦 Zaxira (Backup)"
 BTN_RESTORE = "📥 Restore"
 BTN_PING = "📡 Ping"
+
+BTN_ADD_LINK = "➕ Silka qo'shish"
+BTN_LIST_LINKS = "📋 Silkalar ro'yxati"
+BTN_LINK_CAT_ALL = "📢 Barcha xabarlar"
+BTN_LINK_CAT_MUSIC = "🎵 Musiqa xabarlari"
+BTN_LINK_CAT_VIDEO = "🎬 Video xabarlari"
+BTN_LINK_CAT_ADMIN = "👤 Admin xabarlari"
+
+_LINK_CATEGORY_MAP = {
+    BTN_LINK_CAT_ALL: "all",
+    BTN_LINK_CAT_MUSIC: "music",
+    BTN_LINK_CAT_VIDEO: "video",
+    BTN_LINK_CAT_ADMIN: "admin",
+}
+
+CATEGORY_LABELS = {
+    "all": "📢 Barcha xabarlar",
+    "music": "🎵 Musiqa",
+    "video": "🎬 Video",
+    "admin": "👤 Admin xabarlari",
+}
 
 
 class IsAdmin(BaseFilter):
@@ -107,11 +108,11 @@ def _kb(rows: list[list[str]]) -> ReplyKeyboardMarkup:
 
 
 def admin_reply_kb() -> ReplyKeyboardMarkup:
-    """Admin panelga kirgach pastda DOIMIY ko'rinadigan 6 ta bo'lim tugmasi."""
     return _kb([
         [CAT_MAIN, CAT_FUNCTIONS],
         [CAT_PREMIUM, CAT_SECURITY],
         [CAT_CONTENT, CAT_TECH],
+        [CAT_LINKS],
     ])
 
 
@@ -184,6 +185,65 @@ def restart_confirm_kb() -> ReplyKeyboardMarkup:
     return _kb([[BTN_RESTART_CONFIRM], [BTN_BACK]])
 
 
+def links_category_kb() -> ReplyKeyboardMarkup:
+    return _kb([[BTN_ADD_LINK], [BTN_LIST_LINKS], [BTN_BACK]])
+
+
+def link_type_kb() -> ReplyKeyboardMarkup:
+    return _kb([[BTN_LINK_CAT_ALL], [BTN_LINK_CAT_MUSIC], [BTN_LINK_CAT_VIDEO], [BTN_LINK_CAT_ADMIN], [BTN_BACK]])
+
+
+def _format_remaining(expires_at: str | None) -> str:
+    if not expires_at:
+        return "♾ Muddatsiz"
+    delta = datetime.fromisoformat(expires_at) - datetime.now()
+    total_seconds = delta.total_seconds()
+    if total_seconds <= 0:
+        return "⏰ Muddati tugagan"
+    days = int(total_seconds // 86400)
+    hours = int((total_seconds % 86400) // 3600)
+    minutes = int((total_seconds % 3600) // 60)
+    parts = []
+    if days:
+        parts.append(f"{days} kun")
+    if hours:
+        parts.append(f"{hours} soat")
+    if not days and minutes:
+        parts.append(f"{minutes} daqiqa")
+    return " ".join(parts) if parts else "1 daqiqadan kam"
+
+
+_DURATION_UNITS = [
+    ("hafta", 604800),
+    ("kun", 86400),
+    ("soat", 3600),
+    ("daqiqa", 60),
+    ("minut", 60),
+    ("oy", 2592000),
+    ("soniya", 1),
+]
+
+
+def _parse_duration(text: str) -> tuple[int | None, str]:
+    normalized = text.strip().lower()
+    if normalized in ("doim", "cheksiz", "-", "muddatsiz", "hech qachon"):
+        return None, "Muddatsiz"
+
+    import re
+    match = re.search(r"(\d+)\s*([a-zA-Zʻʼ'`]+)", text)
+    if not match:
+        return None, text.strip()
+
+    amount = int(match.group(1))
+    unit_raw = match.group(2).lower()
+
+    for unit, seconds in _DURATION_UNITS:
+        if unit_raw.startswith(unit):
+            return amount * seconds, text.strip()
+
+    return None, text.strip()
+
+
 # ================= /admin — panelni ochish =================
 
 @router.message(Command("admin"), IsAdmin())
@@ -196,11 +256,7 @@ async def open_admin_panel(message: Message, state: FSMContext):
     )
 
 
-# ================= UNIVERSAL "ORQAGA" — har doim, har qanday holatda ishlaydi =================
-# Diqqat: bu handler fayl boshida ro'yxatdan o'tkazilgan, shuning uchun u
-# boshqa (masalan matn kutayotgan) handlerlardan OLDIN tekshiriladi — demak
-# foydalanuvchi biror funksiya jarayonida (masalan ID kiritishni kutayotganda)
-# "Orqaga" bossa ham, bu har doim ishlaydi va jarayonni bekor qiladi.
+# ================= UNIVERSAL "ORQAGA" =================
 
 @router.message(IsAdmin(), F.text == BTN_BACK)
 async def go_back_to_root(message: Message, state: FSMContext):
@@ -236,7 +292,6 @@ async def show_stats(message: Message):
     banned = db_service.get_banned_count()
     premium = len(db_service.get_premium_users())
     maintenance = "🔴 Yoqilgan" if db_service.is_maintenance_mode() else "🟢 O'chirilgan"
-
     activity = db_service.get_user_activity_counts()
 
     await message.answer(
@@ -264,10 +319,19 @@ async def do_broadcast(message: Message, state: FSMContext):
     user_ids = db_service.get_all_user_ids()
     status = await message.answer(f"⏳ {len(user_ids)} ta foydalanuvchiga yuborilmoqda...")
 
+    links = db_service.get_active_promo_links("admin")
+    extra_kb = None
+    if links:
+        b = InlineKeyboardBuilder()
+        for link in links:
+            b.button(text=link["button_text"], url=link["url"])
+        b.adjust(1)
+        extra_kb = b.as_markup()
+
     sent, failed = 0, 0
     for user_id in user_ids:
         try:
-            await message.copy_to(chat_id=user_id)
+            await message.copy_to(chat_id=user_id, reply_markup=extra_kb)
             sent += 1
         except (TelegramForbiddenError, TelegramBadRequest):
             failed += 1
@@ -696,3 +760,114 @@ async def do_ping(message: Message, bot: Bot):
     await bot.get_me()
     elapsed_ms = (time.monotonic() - start) * 1000
     await message.answer(f"📡 Pong! Telegram API javob vaqti: <b>{elapsed_ms:.0f} ms</b>", parse_mode="HTML")
+
+
+# ================= 7) SILKALAR =================
+
+@router.message(StateFilter(None), IsAdmin(), F.text == CAT_LINKS)
+async def show_links_category(message: Message):
+    await message.answer("🔗 <b>Silkalar</b>", reply_markup=links_category_kb(), parse_mode="HTML")
+
+
+@router.message(StateFilter(None), IsAdmin(), F.text == BTN_ADD_LINK)
+async def ask_link_category(message: Message):
+    await message.answer(
+        "🔗 Bu silka qaysi turdagi xabarlar ostida ko'rinsin?",
+        reply_markup=link_type_kb(),
+    )
+
+
+@router.message(StateFilter(None), IsAdmin(), F.text.in_(_LINK_CATEGORY_MAP.keys()))
+async def ask_link_url(message: Message, state: FSMContext):
+    category = _LINK_CATEGORY_MAP[message.text]
+    await state.update_data(link_category=category)
+    await state.set_state(PromoLinkStates.waiting_for_url)
+    await message.answer("🔗 Silka (URL) manzilini kiriting.\n\nMasalan: https://t.me/kanalim")
+
+
+@router.message(PromoLinkStates.waiting_for_url, IsAdmin(), F.text)
+async def ask_link_button_text(message: Message, state: FSMContext):
+    url = message.text.strip()
+    if url.startswith("t.me/"):
+        url = "https://" + url
+    elif url.startswith("@"):
+        url = "https://t.me/" + url[1:]
+    if not (url.startswith("http://") or url.startswith("https://")):
+        await message.answer("❌ Iltimos, to'g'ri havola (https://... yoki t.me/...) yuboring.")
+        return
+    await state.update_data(link_url=url)
+    await state.set_state(PromoLinkStates.waiting_for_button_text)
+    await message.answer("✏️ Endi shu silka uchun tugma matnini kiriting.\n\nMasalan: 📢 E'lonni ko'rish")
+
+
+@router.message(PromoLinkStates.waiting_for_button_text, IsAdmin(), F.text)
+async def ask_link_duration(message: Message, state: FSMContext):
+    await state.update_data(link_button_text=message.text.strip())
+    await state.set_state(PromoLinkStates.waiting_for_duration)
+    await message.answer(
+        "⏳ Bu silka qancha muddat amal qilsin?\n\n"
+        "Masalan: <code>3 kun</code>, <code>5 soat</code>, <code>30 daqiqa</code>, <code>2 oy</code>\n"
+        "Muddatsiz (doim ko'rinib tursin) uchun: <code>doim</code>",
+        parse_mode="HTML",
+    )
+
+
+@router.message(PromoLinkStates.waiting_for_duration, IsAdmin(), F.text)
+async def do_add_link(message: Message, state: FSMContext):
+    seconds, duration_label = _parse_duration(message.text)
+    data = await state.get_data()
+    category = data.get("link_category")
+    url = data.get("link_url")
+    button_text = data.get("link_button_text")
+
+    expires_at = None
+    if seconds is not None:
+        expires_at = (datetime.now() + timedelta(seconds=seconds)).isoformat()
+
+    link_id = db_service.add_promo_link(button_text, url, category, duration_label, expires_at)
+    db_service.add_log("promo_link_add", f"id={link_id} category={category} by={message.from_user.id}")
+
+    await message.answer(
+        f"✅ Silka qo'shildi!\n\n"
+        f"🔘 Tugma: {button_text}\n"
+        f"🔗 Havola: {url}\n"
+        f"📂 Turi: {CATEGORY_LABELS.get(category, category)}\n"
+        f"⏳ Muddat: {duration_label}",
+        reply_markup=links_category_kb(),
+    )
+    await state.clear()
+
+
+@router.message(StateFilter(None), IsAdmin(), F.text == BTN_LIST_LINKS)
+async def show_links_list(message: Message):
+    links = db_service.get_active_promo_links()
+    if not links:
+        await message.answer("📋 Hozircha faol silkalar yo'q.")
+        return
+
+    lines = ["📋 <b>Faol silkalar:</b>\n"]
+    rows = []
+    for link in links:
+        remaining = _format_remaining(link["expires_at"])
+        cat_label = CATEGORY_LABELS.get(link["category"], link["category"])
+        lines.append(
+            f"🔘 <b>{link['button_text']}</b>\n"
+            f"   📂 {cat_label} | ⏳ {remaining}\n"
+            f"   🔗 {link['url']}\n"
+        )
+        rows.append([f"❌ O'chirish #{link['id']}"])
+    rows.append([BTN_BACK])
+
+    await message.answer("\n".join(lines), reply_markup=_kb(rows), parse_mode="HTML")
+
+
+@router.message(StateFilter(None), IsAdmin(), F.text.startswith("❌ O'chirish #"))
+async def do_delete_link(message: Message):
+    try:
+        link_id = int(message.text.split("#", 1)[1])
+    except (IndexError, ValueError):
+        return
+    db_service.deactivate_promo_link(link_id)
+    db_service.add_log("promo_link_remove", f"id={link_id} by={message.from_user.id}")
+    await message.answer("✅ Silka ro'yxatdan olib tashlandi.")
+    await show_links_list(message)

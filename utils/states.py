@@ -86,3 +86,9 @@ class ImageGenStates(StatesGroup):
 class ImageEditStates(StatesGroup):
     waiting_for_image = State()
     waiting_for_edit_prompt = State()
+
+
+class PromoLinkStates(StatesGroup):
+    waiting_for_url = State()
+    waiting_for_button_text = State()
+    waiting_for_duration = State()

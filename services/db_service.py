@@ -118,6 +118,20 @@ def init_db() -> None:
             """
         )
         conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS promo_links (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                button_text TEXT,
+                url TEXT,
+                category TEXT,
+                duration_label TEXT,
+                expires_at TEXT,
+                active INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.execute(
             "INSERT OR IGNORE INTO bot_settings (key, value) VALUES ('maintenance', '0')"
         )
         conn.execute(
@@ -427,3 +441,73 @@ def save_cached_music_query(
             "VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
             (_normalize_music_query(query), video_id, title, uploader, duration, file_path),
         )
+
+
+# ---------- Silkalar (promo linklar) ----------
+
+def add_promo_link(button_text: str, url: str, category: str, duration_label: str, expires_at: str | None) -> int:
+    with _connect() as conn:
+        cursor = conn.execute(
+            "INSERT INTO promo_links (button_text, url, category, duration_label, expires_at, active) "
+            "VALUES (?, ?, ?, ?, ?, 1)",
+            (button_text, url, category, duration_label, expires_at),
+        )
+        return cursor.lastrowid
+
+
+def get_active_promo_links(category: str | None = None) -> list[dict]:
+    """
+    Faol (muddati o'tmagan) silkalarni qaytaradi.
+    - category berilsa: shu category'ga mos YOKI 'all' (barcha xabarlar) turidagilarni qaytaradi.
+    - category berilmasa: barcha faol silkalarni (admin ro'yxati uchun) qaytaradi.
+    """
+    now = datetime.now().isoformat()
+    with _connect() as conn:
+        if category:
+            rows = conn.execute(
+                "SELECT id, button_text, url, category, duration_label, expires_at FROM promo_links "
+                "WHERE active = 1 AND (category = ? OR category = 'all') "
+                "AND (expires_at IS NULL OR expires_at > ?) "
+                "ORDER BY created_at DESC",
+                (category, now),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT id, button_text, url, category, duration_label, expires_at FROM promo_links "
+                "WHERE active = 1 AND (expires_at IS NULL OR expires_at > ?) "
+                "ORDER BY created_at DESC",
+                (now,),
+            ).fetchall()
+    return [
+        {
+            "id": r[0], "button_text": r[1], "url": r[2],
+            "category": r[3], "duration_label": r[4], "expires_at": r[5],
+        }
+        for r in rows
+    ]
+
+
+def deactivate_promo_link(link_id: int) -> None:
+    with _connect() as conn:
+        conn.execute("UPDATE promo_links SET active = 0 WHERE id = ?", (link_id,))
+
+
+def pop_expired_promo_links() -> list[dict]:
+    """
+    Muddati ENDI tugagan (lekin hali 'active=1' bo'lib turgan) silkalarni topadi,
+    ularni avtomatik nofaol qiladi va admin xabar berishi uchun ro'yxatini qaytaradi.
+    """
+    now = datetime.now().isoformat()
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT id, button_text, category, duration_label FROM promo_links "
+            "WHERE active = 1 AND expires_at IS NOT NULL AND expires_at <= ?",
+            (now,),
+        ).fetchall()
+        ids = [r[0] for r in rows]
+        if ids:
+            conn.executemany("UPDATE promo_links SET active = 0 WHERE id = ?", [(i,) for i in ids])
+    return [
+        {"id": r[0], "button_text": r[1], "category": r[2], "duration_label": r[3]}
+        for r in rows
+    ]
