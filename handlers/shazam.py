@@ -9,7 +9,7 @@ from aiogram.filters import StateFilter
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from services.shazam_service import recognize_music
-from services.music_service import search_music, download_music_by_id, cleanup_file
+from services.music_service import search_music, download_music_by_id, download_music_with_fallback, cleanup_file
 from services import db_service
 from utils.keyboards import BTN_SHAZAM
 from utils.states import ShazamStates
@@ -96,13 +96,13 @@ async def handle_shazam_audio(message: Message, state: FSMContext, bot: Bot):
         db_service.increment_counter("music_served_from_cache")
         return
 
-    search_results = await asyncio.to_thread(search_music, search_query, 1)
+    search_results = await asyncio.to_thread(search_music, search_query, 5)
 
     if not search_results:
         await status.edit_text(f"⚠️ Qo'shiq aniqlandi, lekin YouTube'dan topilmadi.")
         return
 
-    music_result = await asyncio.to_thread(download_music_by_id, search_results[0].video_id)
+    music_result = await asyncio.to_thread(download_music_with_fallback, search_results)
 
     if not music_result.success:
         await status.edit_text(f"⚠️ Qo'shiq aniqlandi, lekin yuklab bo'lmadi: {music_result.error}")
