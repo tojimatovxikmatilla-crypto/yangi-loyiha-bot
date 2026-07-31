@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 # IP'sidan juda tez-tez so'rov ketishi YouTube'ning "429 Too Many Requests"
 # cheklovini keltirib chiqaradi — bu barcha foydalanuvchilar uchun umumiy
 # (global) kechikish, chunki cheklov IP darajasida qo'yiladi.
-_YT_MIN_INTERVAL_SECONDS = 3.0
+_YT_MIN_INTERVAL_SECONDS = 1.0
 _yt_last_request_lock = threading.Lock()
 _yt_last_request_time = 0.0
 
